@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTestBundleDetail } from '@/hooks/useTestBundleDetail';
 import { casesToRead, runnableCases } from '@/lib/bundle-approval';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 /**
  * Duyệt và ghim MỘT phiên bản gói trong một bước (mock-up v2). Duyệt là hành động riêng của giảng viên - không nút sinh nào
@@ -72,33 +73,31 @@ export function ApproveBundleDialog({
         )}
 
         {active.length > 0 && (
-          <div className="overflow-x-auto scroll-edges">
-            <table className="w-full min-w-[32rem] text-left text-small">
-              <caption className="sr-only">Các ca sẽ được duyệt</caption>
-              <thead>
-                <tr className="text-caption text-muted-foreground">
-                  <th scope="col" className="py-1 pr-2">Ca</th>
-                  <th scope="col" className="py-1 pr-2">Input</th>
-                  <th scope="col" className="py-1 pr-2">Output</th>
-                  <th scope="col" className="py-1 pr-2">Trích đề</th>
-                  <th scope="col" className="py-1"><span className="sr-only">Ghi chú</span></th>
-                </tr>
-              </thead>
-              <tbody>
-                {active.map((c) => (
-                  <tr key={c.caseKey} className={mustRead.has(c.caseKey) ? 'bg-warning/10' : ''}>
-                    <td className="break-all py-1 pr-2 align-top font-mono text-caption font-semibold">{c.caseKey}</td>
-                    <td className="whitespace-pre-wrap break-all py-1 pr-2 align-top font-mono text-caption">{c.input}</td>
-                    <td className="whitespace-pre-wrap break-all py-1 pr-2 align-top font-mono text-caption">{c.expectedOutput}</td>
-                    <td className="py-1 pr-2 align-top">
-                      {c.constraintQuote ? `“${c.constraintQuote}”` : <span className="text-muted-foreground">Chưa có trích đề</span>}
-                    </td>
-                    <td className="py-1 align-top">{mustRead.has(c.caseKey) && <Badge variant="warning">Đọc kỹ</Badge>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table className="w-full min-w-[32rem] text-left text-small">
+            <caption className="sr-only">Các ca sẽ được duyệt</caption>
+            <TableHeader>
+              <TableRow className="text-caption text-muted-foreground">
+                <TableHead scope="col" className="py-1 pr-2">Ca</TableHead>
+                <TableHead scope="col" className="py-1 pr-2">Input</TableHead>
+                <TableHead scope="col" className="py-1 pr-2">Output</TableHead>
+                <TableHead scope="col" className="py-1 pr-2">Trích đề</TableHead>
+                <TableHead scope="col" className="py-1"><span className="sr-only">Ghi chú</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {active.map((c) => (
+                <TableRow key={c.caseKey} className={mustRead.has(c.caseKey) ? 'bg-warning/10' : ''}>
+                  <TableCell className="break-all py-1 pr-2 align-top font-mono text-caption font-semibold">{c.caseKey}</TableCell>
+                  <TableCell className="whitespace-pre-wrap break-all py-1 pr-2 align-top font-mono text-caption">{c.input}</TableCell>
+                  <TableCell className="whitespace-pre-wrap break-all py-1 pr-2 align-top font-mono text-caption">{c.expectedOutput}</TableCell>
+                  <TableCell className="py-1 pr-2 align-top">
+                    {c.constraintQuote ? `“${c.constraintQuote}”` : <span className="text-muted-foreground">Chưa có trích đề</span>}
+                  </TableCell>
+                  <TableCell className="py-1 align-top">{mustRead.has(c.caseKey) && <Badge variant="warning">Đọc kỹ</Badge>}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         <label className="flex cursor-pointer items-start gap-2 text-small">

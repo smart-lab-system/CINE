@@ -24,6 +24,7 @@ import {
 import { BundleActions } from './BundleActions';
 import { CaseForm } from './CaseForm';
 import { TestBundleList } from './TestBundleList';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const DEFAULT_GROUP = 'co_ban';
 const SUGGESTED_GROUPS = ['co_ban', 'bien', 'lon'];
@@ -240,34 +241,32 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
             {draft.rows.length === 0 ? (
               <p className="text-small text-muted-foreground">Chưa có ca nào. Bấm Thêm ca để gõ ca đầu tiên.</p>
             ) : (
-              <div className="overflow-x-auto scroll-edges">
-                <table className="w-full min-w-[40rem] text-left text-small">
-                  <caption className="sr-only">Các ca của bản nháp</caption>
-                  <thead>
-                    <tr className="text-caption text-muted-foreground">
-                      <th scope="col" className="py-1 pr-2">Ca</th>
-                      <th scope="col" className="py-1 pr-2">Nhóm</th>
-                      <th scope="col" className="py-1 pr-2">Input</th>
-                      <th scope="col" className="py-1 pr-2">Output mong đợi</th>
-                      <th scope="col" className="py-1 pr-2">Trích đề</th>
-                      <th scope="col" className="py-1 pr-2">Trạng thái</th>
-                      <th scope="col" className="py-1"><span className="sr-only">Thao tác</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {draft.rows.map((row, index) => (
-                      <DraftRowView
-                        key={`${index}-${row.caseKey}`}
-                        row={row}
-                        locked={form !== null}
-                        onEdit={() => editRowAt(index)}
-                        onRemove={() => removeRowAt(index)}
-                        onUndo={() => undoRowAt(index)}
-                      />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table className="w-full min-w-[40rem] text-left text-small">
+                <caption className="sr-only">Các ca của bản nháp</caption>
+                <TableHeader>
+                  <TableRow className="text-caption text-muted-foreground">
+                    <TableHead scope="col" className="py-1 pr-2">Ca</TableHead>
+                    <TableHead scope="col" className="py-1 pr-2">Nhóm</TableHead>
+                    <TableHead scope="col" className="py-1 pr-2">Input</TableHead>
+                    <TableHead scope="col" className="py-1 pr-2">Output mong đợi</TableHead>
+                    <TableHead scope="col" className="py-1 pr-2">Trích đề</TableHead>
+                    <TableHead scope="col" className="py-1 pr-2">Trạng thái</TableHead>
+                    <TableHead scope="col" className="py-1"><span className="sr-only">Thao tác</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {draft.rows.map((row, index) => (
+                    <DraftRowView
+                      key={`${index}-${row.caseKey}`}
+                      row={row}
+                      locked={form !== null}
+                      onEdit={() => editRowAt(index)}
+                      onRemove={() => removeRowAt(index)}
+                      onUndo={() => undoRowAt(index)}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
             )}
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
@@ -310,27 +309,27 @@ function DraftRowView({
   const dropped = row.state === 'dropped';
   const removed = row.state === 'removed';
   return (
-    <tr className={dropped || removed ? 'text-muted-foreground line-through' : ''}>
-      <td className="break-all py-1 pr-2 align-top font-mono text-caption">{row.caseKey}</td>
-      <td className="py-1 pr-2 align-top">{row.group}</td>
-      <td className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">{row.input}</td>
-      <td className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">
+    <TableRow className={dropped || removed ? 'text-muted-foreground line-through' : ''}>
+      <TableCell className="break-all py-1 pr-2 align-top font-mono text-caption">{row.caseKey}</TableCell>
+      <TableCell className="py-1 pr-2 align-top">{row.group}</TableCell>
+      <TableCell className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">{row.input}</TableCell>
+      <TableCell className="break-all py-1 pr-2 align-top font-mono text-caption whitespace-pre-wrap">
         {dropped ? '-' : row.expectedOutput.trim() === '' ? <span className="text-muted-foreground">(rỗng)</span> : row.expectedOutput}
-      </td>
-      <td className="py-1 pr-2 align-top">
+      </TableCell>
+      <TableCell className="py-1 pr-2 align-top">
         {dropped
           ? `Hệ thống đã bỏ: ${row.autoDroppedReason}`
           : row.constraintQuote
             ? `“${row.constraintQuote}”`
             : <span className="text-muted-foreground">Chưa có trích đề</span>}
-      </td>
-      <td className="py-1 pr-2 align-top">
+      </TableCell>
+      <TableCell className="py-1 pr-2 align-top">
         {row.state === 'added' && <Badge variant="accent">Mới</Badge>}
         {row.state === 'edited' && <Badge variant="warning">Đã sửa</Badge>}
         {removed && <Badge variant="outline">Sẽ bỏ</Badge>}
         {dropped && <Badge variant="outline">Hệ thống bỏ</Badge>}
-      </td>
-      <td className="py-1 align-top">
+      </TableCell>
+      <TableCell className="py-1 align-top">
         {removed ? (
           <Button type="button" size="sm" variant="ghost" aria-label={`Hoàn tác ca ${row.caseKey}`} disabled={locked} onClick={onUndo}>
             Hoàn tác
@@ -345,7 +344,7 @@ function DraftRowView({
             </Button>
           </div>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }

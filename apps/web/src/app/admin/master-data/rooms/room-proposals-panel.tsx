@@ -22,6 +22,7 @@ import {
   type LabRoomProposal,
   type LabRoomProposalDetail,
 } from '@/lib/api/lab-room-proposals';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function statusLabel(status: string) {
   switch (status) {
@@ -190,45 +191,43 @@ export function RoomProposalsPanel() {
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Chưa có đề xuất nào.</p>
       ) : (
-        <div className="overflow-x-auto scroll-edges">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="py-2 pr-2 font-medium">Mã</th>
-                <th className="py-2 pr-2 font-medium">Tên</th>
-                <th className="py-2 pr-2 font-medium">Sức chứa</th>
-                <th className="py-2 pr-2 font-medium">Tòa / Tầng</th>
-                <th className="py-2 pr-2 font-medium">Số máy</th>
-                <th className="py-2 pr-2 font-medium">Người gửi</th>
-                <th className="py-2 pr-2 font-medium">Thời gian</th>
-                <th className="py-2 font-medium">Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => (
-                <tr
-                  key={p.id}
-                  className="cursor-pointer border-b hover:bg-muted/50"
-                  onClick={() => void openDetail(p.id)}
-                >
-                  <td className="py-2 pr-2 font-mono">{p.code}</td>
-                  <td className="py-2 pr-2">{p.name}</td>
-                  <td className="py-2 pr-2">{p.capacity}</td>
-                  <td className="py-2 pr-2">
-                    {p.building ?? '-'} / {p.floor ?? '-'}
-                  </td>
-                  <td className="py-2 pr-2">{p.machineCount}</td>
-                  <td className="py-2 pr-2">
-                    {p.proposedByDisplayName ?? p.proposedByEmail}
-                    <span className="block text-xs text-muted-foreground">{p.proposedByEmail}</span>
-                  </td>
-                  <td className="py-2 pr-2">{formatWhen(p.createdAt)}</td>
-                  <td className="py-2">{statusLabel(p.status)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table className="w-full text-sm">
+          <TableHeader>
+            <TableRow className="border-b text-left text-muted-foreground">
+              <TableHead className="py-2 pr-2 font-medium">Mã</TableHead>
+              <TableHead className="py-2 pr-2 font-medium">Tên</TableHead>
+              <TableHead className="py-2 pr-2 font-medium">Sức chứa</TableHead>
+              <TableHead className="py-2 pr-2 font-medium">Tòa / Tầng</TableHead>
+              <TableHead className="py-2 pr-2 font-medium">Số máy</TableHead>
+              <TableHead className="py-2 pr-2 font-medium">Người gửi</TableHead>
+              <TableHead className="py-2 pr-2 font-medium">Thời gian</TableHead>
+              <TableHead className="py-2 font-medium">Trạng thái</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((p) => (
+              <TableRow
+                key={p.id}
+                className="cursor-pointer border-b hover:bg-muted/50"
+                onClick={() => void openDetail(p.id)}
+              >
+                <TableCell className="py-2 pr-2 font-mono">{p.code}</TableCell>
+                <TableCell className="py-2 pr-2">{p.name}</TableCell>
+                <TableCell className="py-2 pr-2">{p.capacity}</TableCell>
+                <TableCell className="py-2 pr-2">
+                  {p.building ?? '-'} / {p.floor ?? '-'}
+                </TableCell>
+                <TableCell className="py-2 pr-2">{p.machineCount}</TableCell>
+                <TableCell className="py-2 pr-2">
+                  {p.proposedByDisplayName ?? p.proposedByEmail}
+                  <span className="block text-xs text-muted-foreground">{p.proposedByEmail}</span>
+                </TableCell>
+                <TableCell className="py-2 pr-2">{formatWhen(p.createdAt)}</TableCell>
+                <TableCell className="py-2">{statusLabel(p.status)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>
@@ -258,48 +257,46 @@ export function RoomProposalsPanel() {
                 </p>
               </div>
 
-              <div className="overflow-x-auto scroll-edges rounded-md border">
-                <table className="w-full min-w-[980px] text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="px-2 py-1.5 font-medium">Role</th>
-                      <th className="px-2 py-1.5 font-medium">Hostname</th>
-                      <th className="px-2 py-1.5 font-medium">CPU</th>
-                      <th className="px-2 py-1.5 font-medium">RAM</th>
-                      <th className="px-2 py-1.5 font-medium">Ổ cứng</th>
-                      <th className="px-2 py-1.5 font-medium">GPU</th>
-                      <th className="px-2 py-1.5 font-medium">HĐH</th>
-                      <th className="px-2 py-1.5 font-medium">IP</th>
-                      <th className="px-2 py-1.5 font-medium">MAC</th>
-                      <th className="px-2 py-1.5 font-medium">Trạng thái</th>
-                      <th className="px-2 py-1.5 font-medium">SV</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.machines.map((m) => (
-                      <tr key={m.id} className="border-b">
-                        <td className="px-2 py-1.5 whitespace-nowrap">
-                          {m.role === 'teacher_hub' ? 'Máy GV' : 'Máy SV'}
-                        </td>
-                        <td className="px-2 py-1.5 font-mono text-xs">{m.hostname}</td>
-                        <td className="px-2 py-1.5">{m.cpu}</td>
-                        <td className="px-2 py-1.5">{m.ramGb} GB</td>
-                        <td className="px-2 py-1.5">{m.storage}</td>
-                        <td className="px-2 py-1.5">{m.gpu ?? '-'}</td>
-                        <td className="px-2 py-1.5">{m.os}</td>
-                        <td className="px-2 py-1.5 font-mono text-xs">{m.localIp}</td>
-                        <td className="px-2 py-1.5 font-mono text-xs">{m.macAddress}</td>
-                        <td className="px-2 py-1.5">{machineStatusLabel(m.status)}</td>
-                        <td className="px-2 py-1.5">
-                          {m.studentMssv
-                            ? `${m.studentFullName ?? ''} ${m.studentMssv}`.trim()
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table container={{ className: 'rounded-md border' }} className="w-full min-w-[980px] text-sm">
+                <TableHeader>
+                  <TableRow className="border-b text-left text-muted-foreground">
+                    <TableHead className="px-2 py-1.5 font-medium">Role</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">Hostname</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">CPU</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">RAM</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">Ổ cứng</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">GPU</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">HĐH</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">IP</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">MAC</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">Trạng thái</TableHead>
+                    <TableHead className="px-2 py-1.5 font-medium">SV</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {detail.machines.map((m) => (
+                    <TableRow key={m.id} className="border-b">
+                      <TableCell className="px-2 py-1.5 whitespace-nowrap">
+                        {m.role === 'teacher_hub' ? 'Máy GV' : 'Máy SV'}
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5 font-mono text-xs">{m.hostname}</TableCell>
+                      <TableCell className="px-2 py-1.5">{m.cpu}</TableCell>
+                      <TableCell className="px-2 py-1.5">{m.ramGb} GB</TableCell>
+                      <TableCell className="px-2 py-1.5">{m.storage}</TableCell>
+                      <TableCell className="px-2 py-1.5">{m.gpu ?? '-'}</TableCell>
+                      <TableCell className="px-2 py-1.5">{m.os}</TableCell>
+                      <TableCell className="px-2 py-1.5 font-mono text-xs">{m.localIp}</TableCell>
+                      <TableCell className="px-2 py-1.5 font-mono text-xs">{m.macAddress}</TableCell>
+                      <TableCell className="px-2 py-1.5">{machineStatusLabel(m.status)}</TableCell>
+                      <TableCell className="px-2 py-1.5">
+                        {m.studentMssv
+                          ? `${m.studentFullName ?? ''} ${m.studentMssv}`.trim()
+                          : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
               {detail.status === 'pending' && (
                 <DialogFooter className="gap-2 sm:justify-between">

@@ -19,6 +19,7 @@ import {
   type VersionBrowseView,
 } from '@/lib/api/ide-utilities';
 import { JplagComparisonViewer } from '@/components/jplag/jplag-comparison-viewer';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const JPLAG_DEMO_LANGUAGE_OPTIONS: { value: JplagDemoLanguage; label: string }[] = [
   { value: 'javascript', label: 'JavaScript / JSX' },
@@ -628,54 +629,52 @@ export default function IdeExtensionVersionBrowsePage() {
                 )}
               </div>
             ) : (
-              <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-background text-left text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">Tên</th>
-                      <th className="px-3 py-2 font-medium">Loại</th>
-                      <th className="px-3 py-2 font-medium">Kích thước</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {folderChildren.length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="px-3 py-4 text-muted-foreground">
-                          Thư mục trống.
-                        </td>
-                      </tr>
-                    ) : (
-                      folderChildren.map((node) => {
-                        const parts = [...folderPath, node.name];
-                        return (
-                          <tr key={parts.join('/')} className="border-t">
-                            <td className="px-3 py-2 font-mono text-xs">
-                              <button
-                                type="button"
-                                className="text-left text-primary hover:underline"
-                                onClick={() => {
-                                  if (node.type === 'dir') {
-                                    setExpanded((prev) => new Set(prev).add(parts.join('/')));
-                                  }
-                                  onSelect(parts, node.type === 'dir');
-                                }}
-                              >
-                                {node.name}
-                              </button>
-                            </td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              {node.type === 'dir' ? 'Thư mục' : 'File'}
-                            </td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              {node.type === 'file' ? formatSize(node.size) : '-'}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <Table container={{ className: 'max-h-[65vh]' }} className="w-full text-sm">
+                <TableHeader className="sticky top-0 bg-background text-left text-muted-foreground">
+                  <TableRow>
+                    <TableHead className="px-3 py-2 font-medium">Tên</TableHead>
+                    <TableHead className="px-3 py-2 font-medium">Loại</TableHead>
+                    <TableHead className="px-3 py-2 font-medium">Kích thước</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {folderChildren.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="px-3 py-4 text-muted-foreground">
+                        Thư mục trống.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    folderChildren.map((node) => {
+                      const parts = [...folderPath, node.name];
+                      return (
+                        <TableRow key={parts.join('/')} className="border-t">
+                          <TableCell className="px-3 py-2 font-mono text-xs">
+                            <button
+                              type="button"
+                              className="text-left text-primary hover:underline"
+                              onClick={() => {
+                                if (node.type === 'dir') {
+                                  setExpanded((prev) => new Set(prev).add(parts.join('/')));
+                                }
+                                onSelect(parts, node.type === 'dir');
+                              }}
+                            >
+                              {node.name}
+                            </button>
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-muted-foreground">
+                            {node.type === 'dir' ? 'Thư mục' : 'File'}
+                          </TableCell>
+                          <TableCell className="px-3 py-2 text-muted-foreground">
+                            {node.type === 'file' ? formatSize(node.size) : '-'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
             )}
           </section>
         </div>

@@ -9,6 +9,7 @@ import { useApproveTestBundle, usePinTestBundle, useTestBundles } from '@/hooks/
 import { useDropTestBundleCase, useTestBundleDetail } from '@/hooks/useTestBundleDetail';
 import { caseVerdict, summarizeRun, type BundleRunState } from '@/lib/bundle-runs';
 import { ApproveBundleDialog } from './ApproveBundleDialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type Runs = Pick<ReturnType<typeof useBundleRuns>, 'runs' | 'run' | 'pendingKey'>;
 
@@ -195,81 +196,79 @@ function CaseTable({
   // bản `table-fixed` + bốn cột rộng cố định ép nó còn 32px (đo ở trình duyệt, khung 1360px), mỗi chữ một dòng.
   // Cột chữ nhận phần còn lại với `min-w`; màn hẹp hơn thì cuộn ngang thay vì bóp cột.
   return (
-    <div className="mt-3 overflow-x-auto scroll-edges">
-      <table className="w-full min-w-[36rem] text-left text-small">
-        <caption className="sr-only">Bộ ca của gói test phiên bản này</caption>
-        <thead>
-          <tr className="text-caption text-muted-foreground">
-            <th scope="col" className="w-16 py-1 pr-2">Nhóm</th>
-            <th scope="col" className="w-24 py-1 pr-2">Input</th>
-            <th scope="col" className="w-24 py-1 pr-2">Output mong đợi</th>
-            <th scope="col" className="min-w-[10rem] py-1 pr-2">Câu trong đề mà ca này kiểm</th>
-            <th scope="col" className="w-32 py-1 pr-2">Chạy thử</th>
-            <th scope="col" className="w-36 py-1"><span className="sr-only">Thao tác</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {detail.data?.cases.map((c) => {
-            const result = run?.cases[c.caseKey];
-            const verdict = result ? caseVerdict(result.status) : null;
-            return (
-              <tr key={c.caseKey} className={c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}>
-                <td className="break-words py-1 pr-2 align-top">{c.group}</td>
-                <td className="break-all py-1 pr-2 align-top font-mono text-caption">{c.input}</td>
-                <td className="break-all py-1 pr-2 align-top font-mono text-caption">{c.expectedOutput}</td>
-                <td className="py-1 pr-2 align-top">
-                  {c.autoDroppedReason ? (
-                    <span>Hệ thống đã bỏ ca này: {c.autoDroppedReason}</span>
-                  ) : c.constraintQuote ? (
-                    <span className="italic text-muted-foreground">“{c.constraintQuote}”</span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </td>
-                <td className="py-1 pr-2 align-top">
-                  {c.autoDroppedReason ? (
-                    '-'
-                  ) : verdict ? (
-                    <div className="flex flex-col gap-0.5">
-                      <Badge variant={verdict.tone === 'ok' ? 'success' : 'destructive'}>{verdict.label}</Badge>
-                      {result?.diff && <span className="break-words text-caption text-muted-foreground">{result.diff}</span>}
-                    </div>
-                  ) : (
-                    <span className="text-caption text-muted-foreground">Chưa chạy</span>
-                  )}
-                </td>
-                <td className="py-1 align-top">
-                  {!c.autoDroppedReason && (
-                    <div className="flex flex-wrap gap-1">
+    <Table container={{ className: 'mt-3' }} className="w-full min-w-[36rem] text-left text-small">
+      <caption className="sr-only">Bộ ca của gói test phiên bản này</caption>
+      <TableHeader>
+        <TableRow className="text-caption text-muted-foreground">
+          <TableHead scope="col" className="w-16 py-1 pr-2">Nhóm</TableHead>
+          <TableHead scope="col" className="w-24 py-1 pr-2">Input</TableHead>
+          <TableHead scope="col" className="w-24 py-1 pr-2">Output mong đợi</TableHead>
+          <TableHead scope="col" className="min-w-[10rem] py-1 pr-2">Câu trong đề mà ca này kiểm</TableHead>
+          <TableHead scope="col" className="w-32 py-1 pr-2">Chạy thử</TableHead>
+          <TableHead scope="col" className="w-36 py-1"><span className="sr-only">Thao tác</span></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {detail.data?.cases.map((c) => {
+          const result = run?.cases[c.caseKey];
+          const verdict = result ? caseVerdict(result.status) : null;
+          return (
+            <TableRow key={c.caseKey} className={c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}>
+              <TableCell className="break-words py-1 pr-2 align-top">{c.group}</TableCell>
+              <TableCell className="break-all py-1 pr-2 align-top font-mono text-caption">{c.input}</TableCell>
+              <TableCell className="break-all py-1 pr-2 align-top font-mono text-caption">{c.expectedOutput}</TableCell>
+              <TableCell className="py-1 pr-2 align-top">
+                {c.autoDroppedReason ? (
+                  <span>Hệ thống đã bỏ ca này: {c.autoDroppedReason}</span>
+                ) : c.constraintQuote ? (
+                  <span className="italic text-muted-foreground">“{c.constraintQuote}”</span>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </TableCell>
+              <TableCell className="py-1 pr-2 align-top">
+                {c.autoDroppedReason ? (
+                  '-'
+                ) : verdict ? (
+                  <div className="flex flex-col gap-0.5">
+                    <Badge variant={verdict.tone === 'ok' ? 'success' : 'destructive'}>{verdict.label}</Badge>
+                    {result?.diff && <span className="break-words text-caption text-muted-foreground">{result.diff}</span>}
+                  </div>
+                ) : (
+                  <span className="text-caption text-muted-foreground">Chưa chạy</span>
+                )}
+              </TableCell>
+              <TableCell className="py-1 align-top">
+                {!c.autoDroppedReason && (
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      aria-label={`Chạy thử ca ${c.caseKey}`}
+                      disabled={locked}
+                      onClick={() => runs.run(bundleId, c.caseKey)}
+                    >
+                      {runs.pendingKey === `${bundleId}:${c.caseKey}` ? 'Đang chạy…' : 'Chạy'}
+                    </Button>
+                    {!approved && (
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
-                        aria-label={`Chạy thử ca ${c.caseKey}`}
-                        disabled={locked}
-                        onClick={() => runs.run(bundleId, c.caseKey)}
+                        loading={drop.isPending}
+                        onClick={() => drop.mutate({ bundleId, caseKey: c.caseKey })}
                       >
-                        {runs.pendingKey === `${bundleId}:${c.caseKey}` ? 'Đang chạy…' : 'Chạy'}
+                        Bỏ ca này
                       </Button>
-                      {!approved && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          loading={drop.isPending}
-                          onClick={() => drop.mutate({ bundleId, caseKey: c.caseKey })}
-                        >
-                          Bỏ ca này
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                    )}
+                  </div>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
   );
 }
