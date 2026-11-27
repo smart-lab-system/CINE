@@ -59,12 +59,12 @@ Chủ dự án chọn B (27/11/2026). Lý do: việc chính của danh sách là
 **Một mô hình hàng dùng chung.** Rút phần tính ra khỏi `Row` của `SessionTable` thành một hàm thuần (ngày giờ, nhãn loại, dòng phụ, ghi chú, hành động, nhãn `aria-label` của nút) để bảng và thẻ cùng đọc; tương tự cho `ResultsTable` (nhãn điểm, đếm lỗi, lý do). Đây là cách chặn thẻ lệch bảng.
 
 **Thẻ phiên (danh sách phiên).** `<ul aria-label="Danh sách phiên chấm">`; tiêu đề nhóm (nếu có) là một `<li>` có nút `aria-expanded` và ô chọn cả nhóm như hiện nay.
-- Dòng 1: ô chọn (vùng bấm ≥ 40px) và tên phiên (liên kết, tối đa 2 dòng, `title` là tên đầy đủ).
+- Dòng 1: ô chọn (vùng bấm ≥ 40px) và tên phiên (liên kết, tối đa 2 dòng, `title` là tên đầy đủ), kèm dòng phụ "lớp · phòng" ngay dưới tên (như bảng).
 - Dòng 2 (chữ phụ): ngày giờ · loại · "N/M bài nộp".
 - Dòng 3: trạng thái (cùng `StatusPill`) và ghi chú cảnh báo nếu có.
 - Dòng 4: `SessionProgress` đủ bề rộng.
 - Dòng 5: nút hành động, canh phải, cao ≥ 40px, cùng `aria-label` như bảng.
-- Trạng thái chọn giữ `data-selected` và nền `bg-primary-subtle`. Chế độ "Gọn" ẩn dòng 2 phụ và ghi chú, giống bảng.
+- Trạng thái chọn giữ `data-selected` và nền `bg-primary-subtle`. Chế độ "Gọn" chỉ ẩn ghi chú; ngày và số bài nộp vẫn hiện vì bảng ở chế độ Gọn cũng giữ chúng (ẩn dòng 2 sẽ làm thẻ thiếu thông tin mà bảng có). [Sửa theo kế hoạch PR 1.]
 - Sắp xếp và nhóm dùng các ô chọn có sẵn trong thanh lọc (đã hiện ở 390px), nên thẻ không cần tiêu đề cột bấm được.
 
 **Thẻ bài (danh sách bài của phiên).**
@@ -73,7 +73,7 @@ Chủ dự án chọn B (27/11/2026). Lý do: việc chính của danh sách là
 - Dòng 3 (chữ phụ): số lỗi · lý do cần bạn (tối đa 2 dòng); dòng này luôn có để không mất cột "Vì sao cần bạn".
 - MSSV là liên kết duy nhất tới hồ sơ; không biến cả thẻ thành liên kết (tránh liên kết lồng trong liên kết).
 
-**Chip "Chấm bằng đọc mã, không chạy" (lựa chọn của tôi, bỏ được).** Khi mọi bài đang hiện cùng cách chấm này, hiện MỘT lần ở đầu danh sách ("Cả phiên chấm bằng cách đọc mã, không chạy") và bỏ chip khỏi từng hàng, cả bảng lẫn thẻ; bài khác cách giữ chip riêng. Chỉ là suy ra cách hiện từ dữ liệu đã có.
+**Chip "Chấm bằng đọc mã, không chạy" (lựa chọn của tôi, bỏ được).** Khi từ hai bài trở lên đang hiện đều chấm bằng cách này (một bài đơn lẻ giữ chip riêng), hiện MỘT lần ở đầu danh sách ("Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy.") và bỏ chip khỏi từng hàng, cả bảng lẫn thẻ; bài khác cách giữ chip riêng. Chỉ là suy ra cách hiện từ dữ liệu đã có.
 
 **Khung chọn nhóm "Tất cả" và bộ lọc, header trang:** không đổi.
 
