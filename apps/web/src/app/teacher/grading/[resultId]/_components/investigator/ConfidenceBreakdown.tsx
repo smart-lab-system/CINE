@@ -40,7 +40,7 @@ export function ConfidenceBreakdown({
     <section aria-label="Mức chắc chắn tính từ đâu" className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3">
       <h3 className="section-label">Mức chắc chắn tính từ đâu</h3>
       {terms.length === 0 ? (
-        <p className="text-small text-muted-foreground">Không có lỗi nào có điểm để đo, nên mức chắc chắn không lấy từ lỗi nào.</p>
+        <p className="text-small text-muted-foreground">Không có lỗi nào có điểm để đo, nên mức chắc chắn không lấy từ lỗi nào. Bài không có lỗi chỉ được tự chốt khi mức kiểm tra bài đủ; chưa đủ thì bài bị gắn cờ cho bạn xem.</p>
       ) : (
         <Table className="text-small">
           <thead>
@@ -73,7 +73,9 @@ export function ConfidenceBreakdown({
       {lowerBy !== null && (
         <p className="text-caption text-muted-foreground">giới hạn khác kéo xuống {percentOf(lowerBy)}</p>
       )}
-      <p className="text-caption text-muted-foreground">Cần từ {percentOf(theta)} mới tự chốt.</p>
+      {terms.length > 0 && (
+        <p className="text-caption text-muted-foreground">Cần từ {percentOf(theta)} mới tự chốt.</p>
+      )}
     </section>
   );
 }

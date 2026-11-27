@@ -190,6 +190,8 @@ Các mục **không** phải lỗi seed vẫn còn nguyên, cần sửa ở sả
 
 ---
 
+- **Xử lý (PR sửa L-25): KHÔNG phải lỗi, là thiết kế đã duyệt.** Spec `2026-10-21-cham-diem-duyet-nhanh-design.md` §5.8b quy định rõ: bài không có lỗi nào KHÔNG hiện số %, hiện "Chưa đo được", ô thanh viền đứt và cảnh báo "Không thấy lỗi không có nghĩa là bài đúng", vì giá trị nội bộ 1,0 (chặn 0,97) của bài sạch chỉ nói về độ phủ chứ không phải mức chắc chắn (`confidence.ts`, `caseConfidence`). `CertaintyHero` làm đúng spec nên giữ nguyên. Phần còn lại là chỗ giải thích thiếu: mục "Mức chắc chắn tính từ đâu" vẫn viết "Cần từ 85% mới tự chốt" cho bài sạch dù bài tự chốt theo độ phủ chứ không theo %. Đã sửa chữ (không đổi hành vi): bài không có lỗi nói "chỉ được tự chốt khi mức kiểm tra bài đủ; chưa đủ thì bài bị gắn cờ", và bỏ dòng ngưỡng không áp dụng. Nếu chủ dự án muốn đổi chính quyết định §5.8b (hiện số % cho bài sạch) thì đó là đổi spec, không phải sửa lỗi.
+
 ## G. Chấm lại các màn chấm điểm sau khi seed lại
 
 Chấm lại 48 ảnh (24 màn × 2 viewport) trên dữ liệu đã sửa. Điểm trung bình **6,06/10** (390px 5,83; desktop 6,29). Chi tiết: [grading-regrade.csv](grading-regrade.csv).
