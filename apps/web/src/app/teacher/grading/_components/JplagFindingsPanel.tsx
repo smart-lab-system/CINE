@@ -123,7 +123,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
           <h3 className="text-sm font-medium">Vs đáp án mẫu</h3>
           <Table className="w-full text-left text-sm">
             <TableHeader>
-              <TableRow className="border-b text-muted-foreground">
+              <TableRow className="text-muted-foreground">
                 <TableHead className="py-1.5 pr-2 font-medium">Extension</TableHead>
                 <TableHead className="py-1.5 pr-2 font-medium">Trạng thái</TableHead>
                 <TableHead className="py-1.5 pr-2 font-medium">Text</TableHead>
@@ -133,7 +133,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
             </TableHeader>
             <TableBody>
               {vsModel.map((r) => (
-                <TableRow key={r.id} className="border-b border-border/60 align-top">
+                <TableRow key={r.id} className="border-border/60 align-top">
                   <TableCell className="py-2 pr-2 font-mono text-xs">
                     {r.extensionIdentifier}
                     {r.extensionVersion ? `@${r.extensionVersion}` : ''}
@@ -193,7 +193,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
           <h3 className="text-sm font-medium">Vs bài nộp</h3>
           <Table className="w-full text-left text-sm">
             <TableHeader>
-              <TableRow className="border-b text-muted-foreground">
+              <TableRow className="text-muted-foreground">
                 <TableHead className="py-1.5 pr-2 font-medium">MSSV</TableHead>
                 <TableHead className="py-1.5 pr-2 font-medium">Extension</TableHead>
                 <TableHead className="py-1.5 pr-2 font-medium">Trạng thái</TableHead>
@@ -204,7 +204,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
             </TableHeader>
             <TableBody>
               {vsStudent.map((r) => (
-                <TableRow key={r.id} className="border-b border-border/60 align-top">
+                <TableRow key={r.id} className="border-border/60 align-top">
                   <TableCell className="py-2 pr-2 font-mono text-xs">{r.studentMssv ?? '-'}</TableCell>
                   <TableCell className="py-2 pr-2 font-mono text-xs">
                     {r.extensionIdentifier}

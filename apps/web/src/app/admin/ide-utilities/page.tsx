@@ -218,7 +218,7 @@ export default function IdeUtilitiesPage() {
                   {catalog.map((ext) => (
                     <TableRow
                       key={ext.id}
-                      className="cursor-pointer border-t hover:bg-muted/60"
+                      className="cursor-pointer hover:bg-muted/60"
                       onClick={() => router.push(`${basePath}/${ext.id}`)}
                     >
                       <TableCell className="px-3 py-2.5 font-medium">{ext.displayName}</TableCell>
@@ -323,7 +323,7 @@ function ViolationExtensionRows({
 }) {
   return (
     <>
-      <TableRow className="cursor-pointer border-t hover:bg-muted/60" onClick={onToggle}>
+      <TableRow className="cursor-pointer hover:bg-muted/60" onClick={onToggle}>
         <TableCell className="px-3 py-2.5 font-medium">{ext.displayName ?? '-'}</TableCell>
         <TableCell className="px-3 py-2.5">{ext.publisher ?? '-'}</TableCell>
         <TableCell className="px-3 py-2.5 font-mono text-xs">{ext.extensionId}</TableCell>
@@ -348,7 +348,7 @@ function ViolationExtensionRows({
         </TableCell>
       </TableRow>
       {expanded && (
-        <TableRow className="border-t bg-muted/20">
+        <TableRow className="bg-muted/20">
           <TableCell colSpan={7} className="px-3 py-3">
             <div className="space-y-2">
               {ext.versions.map((ver) => {
@@ -395,7 +395,7 @@ function ViolationExtensionRows({
                         </TableHeader>
                         <TableBody>
                           {ver.incidents.map((inc) => (
-                            <TableRow key={inc.scanItemId} className="border-t">
+                            <TableRow key={inc.scanItemId}>
                               <TableCell className="px-3 py-2">{inc.examSessionName ?? '-'}</TableCell>
                               <TableCell className="px-3 py-2">{inc.courseName ?? '-'}</TableCell>
                               <TableCell className="px-3 py-2 font-mono text-xs">{inc.studentMssv}</TableCell>

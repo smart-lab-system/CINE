@@ -648,7 +648,7 @@ export default function IdeExtensionVersionBrowsePage() {
                     folderChildren.map((node) => {
                       const parts = [...folderPath, node.name];
                       return (
-                        <TableRow key={parts.join('/')} className="border-t">
+                        <TableRow key={parts.join('/')}>
                           <TableCell className="px-3 py-2 font-mono text-xs">
                             <button
                               type="button"

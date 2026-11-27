@@ -193,7 +193,7 @@ export function RoomProposalsPanel() {
       ) : (
         <Table className="w-full text-sm">
           <TableHeader>
-            <TableRow className="border-b text-left text-muted-foreground">
+            <TableRow className="text-left text-muted-foreground">
               <TableHead className="py-2 pr-2 font-medium">Mã</TableHead>
               <TableHead className="py-2 pr-2 font-medium">Tên</TableHead>
               <TableHead className="py-2 pr-2 font-medium">Sức chứa</TableHead>
@@ -208,7 +208,7 @@ export function RoomProposalsPanel() {
             {items.map((p) => (
               <TableRow
                 key={p.id}
-                className="cursor-pointer border-b hover:bg-muted/50"
+                className="cursor-pointer hover:bg-muted/50"
                 onClick={() => void openDetail(p.id)}
               >
                 <TableCell className="py-2 pr-2 font-mono">{p.code}</TableCell>
@@ -259,7 +259,7 @@ export function RoomProposalsPanel() {
 
               <Table container={{ className: 'rounded-md border' }} className="w-full min-w-[980px] text-sm">
                 <TableHeader>
-                  <TableRow className="border-b text-left text-muted-foreground">
+                  <TableRow className="text-left text-muted-foreground">
                     <TableHead className="px-2 py-1.5 font-medium">Role</TableHead>
                     <TableHead className="px-2 py-1.5 font-medium">Hostname</TableHead>
                     <TableHead className="px-2 py-1.5 font-medium">CPU</TableHead>
@@ -275,7 +275,7 @@ export function RoomProposalsPanel() {
                 </TableHeader>
                 <TableBody>
                   {detail.machines.map((m) => (
-                    <TableRow key={m.id} className="border-b">
+                    <TableRow key={m.id}>
                       <TableCell className="px-2 py-1.5 whitespace-nowrap">
                         {m.role === 'teacher_hub' ? 'Máy GV' : 'Máy SV'}
                       </TableCell>

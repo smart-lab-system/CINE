@@ -237,7 +237,7 @@ export default function IdeUtilityDetailPage() {
               </TableHeader>
               <TableBody>
                 {detail.versions.map((v) => (
-                  <TableRow key={v.id} className="border-t">
+                  <TableRow key={v.id}>
                     <TableCell className="px-3 py-2.5 font-mono">
                       {v.version === '*' ? (
                         <span>
