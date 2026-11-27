@@ -56,6 +56,15 @@ export function sessionRowView(row: SessionRow, now: number): SessionRowView {
   };
 }
 
+/**
+ * "Chọn tất cả phiên đang hiện": mọi id trong mọi nhóm (kể cả nhóm đã thu gọn, như bảng) và trạng thái của ô chọn.
+ * Một nơi tính cho cả bảng lẫn thẻ.
+ */
+export function selectionOf(groups: RowGroup[], selected: ReadonlySet<string>): { ids: string[]; all: boolean; some: boolean } {
+  const ids = groups.flatMap((g) => g.rows.map((r) => r.session.id));
+  return { ids, all: ids.length > 0 && ids.every((id) => selected.has(id)), some: ids.some((id) => selected.has(id)) };
+}
+
 /** Số liệu ở tiêu đề một nhóm: tổng hàng và hai trạng thái được nêu bật. */
 export function groupSummary(g: RowGroup): { total: number; attention: number; ready: number } {
   return {

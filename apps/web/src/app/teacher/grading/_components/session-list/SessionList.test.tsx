@@ -274,6 +274,12 @@ describe('SessionList - narrow viewport', () => {
     expect(screen.getByText(/Đã chọn 1 phiên/)).toBeInTheDocument();
   });
 
+  it('select-all on cards puts every visible session in the bulk bar', () => {
+    renderList();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Chọn tất cả phiên đang hiện/ }));
+    expect(screen.getByText(/Đã chọn 3 phiên/)).toBeInTheDocument();
+  });
+
   it('a wide viewport still renders the table', () => {
     media.setMatches(false);
     renderList();

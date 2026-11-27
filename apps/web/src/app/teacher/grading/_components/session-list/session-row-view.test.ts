@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { groupRows } from '@/lib/session-list';
 import { NOW, rowsOf, session, summary } from '@/lib/session-list.fixtures';
-import { groupSummary, sessionRowView } from './session-row-view';
+import { groupSummary, selectionOf, sessionRowView } from './session-row-view';
 
 const attention = () =>
   rowsOf(
@@ -50,6 +50,28 @@ describe('sessionRowView', () => {
   it('shows the todo note that says why a session cannot start', () => {
     const [row] = rowsOf([session({ id: 'b', rubricId: null })], [summary('b')]);
     expect(sessionRowView(row, NOW).note).toEqual({ text: 'Thiếu rubric', tone: 'warn' });
+  });
+});
+
+describe('selectionOf', () => {
+  const rows = rowsOf(
+    [session({ id: 'a', className: 'X' }), session({ id: 'b', className: 'Y', classId: 'c2' }), session({ id: 'c', className: 'X' })],
+    undefined,
+  );
+  const groups = groupRows(rows, 'class');
+
+  it('lists every session id across all groups', () => {
+    expect(selectionOf(groups, new Set()).ids.slice().sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('reports none, some and all picked', () => {
+    expect(selectionOf(groups, new Set())).toMatchObject({ all: false, some: false });
+    expect(selectionOf(groups, new Set(['a']))).toMatchObject({ all: false, some: true });
+    expect(selectionOf(groups, new Set(['a', 'b', 'c']))).toMatchObject({ all: true, some: true });
+  });
+
+  it('nothing to pick is never "all"', () => {
+    expect(selectionOf([], new Set())).toEqual({ ids: [], all: false, some: false });
   });
 });
 

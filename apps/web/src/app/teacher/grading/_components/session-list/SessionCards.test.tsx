@@ -103,10 +103,32 @@ describe('SessionCards', () => {
     render(<SessionCards {...p} />);
     expect(screen.getByRole('button', { name: /DHKTPM18ATT/ })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('link', { name: 'Kiểm tra giữa kỳ' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('checkbox', { name: /Chọn cả nhóm DHKTPM18ATT/ }));
+    const groupBox = screen.getByRole('checkbox', { name: /Chọn cả nhóm DHKTPM18ATT/ });
+    expect(groupBox.closest('label')).toHaveClass('h-10', 'w-10');
+    fireEvent.click(groupBox);
     expect(p.onToggleRows).toHaveBeenCalledWith(['a', 'c'], true);
     fireEvent.click(screen.getByRole('button', { name: /DHKTPM18ATT/ }));
     expect(p.onToggleGroup).toHaveBeenCalledWith(groups[0].key);
+  });
+
+  it('one control selects every visible session, and is indeterminate when only some are picked', () => {
+    const p = props({ selected: new Set(['a']) });
+    render(<SessionCards {...p} />);
+    const all = screen.getByRole('checkbox', { name: /Chọn tất cả phiên đang hiện/ }) as HTMLInputElement;
+    expect(all.indeterminate).toBe(true);
+    expect(all.closest('label')).toHaveClass('h-10');
+    fireEvent.click(all);
+    expect(p.onToggleRows).toHaveBeenCalledWith(['a', 'b', 'c'], true);
+  });
+
+  it('select-all also covers the sessions of a collapsed group, like the table', () => {
+    const groups = groupRows(rows, 'class');
+    const p = props({ groups, collapsed: new Set([groups[0].key!]) });
+    render(<SessionCards {...p} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /Chọn tất cả phiên đang hiện/ }));
+    const [ids, on] = (p.onToggleRows as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect([...ids].sort()).toEqual(['a', 'b', 'c']);
+    expect(on).toBe(true);
   });
 
   it('unknown status: dashes and a plain open link, no crash', () => {

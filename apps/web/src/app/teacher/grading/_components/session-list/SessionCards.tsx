@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import type { SessionRow } from '@/lib/session-list';
 import { cn } from '@/lib/utils';
 import { SessionProgress } from './SessionProgress';
-import { groupSummary, sessionRowView } from './session-row-view';
+import { groupSummary, selectionOf, sessionRowView } from './session-row-view';
 import type { SessionTableProps } from './SessionTable';
 import { StatusPill } from './StatusPill';
 import { TriCheckbox } from './TriCheckbox';
@@ -91,9 +91,18 @@ function Card({
  * bảng. Sắp xếp và nhóm dùng các ô chọn trong thanh lọc, nên thẻ không có tiêu đề cột.
  */
 export function SessionCards({ groups, selected, onToggleRows, collapsed, onToggleGroup, onStart, density, now }: SessionCardsProps) {
+  const { ids: allIds, all, some } = selectionOf(groups, selected);
   return (
     <div data-density={density} className="group overflow-clip rounded-lg border border-border bg-surface shadow-sm">
       <ul aria-label="Danh sách phiên chấm" className="divide-y divide-border">
+        <li className="bg-surface-2">
+          <label className="flex h-10 cursor-pointer items-center">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+              <TriCheckbox checked={all} indeterminate={!all && some} onChange={(on) => onToggleRows(allIds, on)} label="Chọn tất cả phiên đang hiện" />
+            </span>
+            <span className="text-caption font-semibold text-muted-foreground">Chọn tất cả</span>
+          </label>
+        </li>
         {groups.flatMap((g) => {
           const open = g.key === null || !collapsed.has(g.key);
           const ids = g.rows.map((r) => r.session.id);
@@ -102,14 +111,14 @@ export function SessionCards({ groups, selected, onToggleRows, collapsed, onTogg
           return [
             g.key !== null && (
               <li key={`group-${g.key}`} className="flex items-center bg-surface-2">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+                <label className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center">
                   <TriCheckbox
                     checked={inGroup === ids.length && ids.length > 0}
                     indeterminate={inGroup > 0 && inGroup < ids.length}
                     onChange={(on) => onToggleRows(ids, on)}
                     label={`Chọn cả nhóm ${g.label}`}
                   />
-                </span>
+                </label>
                 <button
                   type="button"
                   aria-expanded={open}

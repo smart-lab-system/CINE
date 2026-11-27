@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import type { ListView, RowGroup, SessionRow, SortKey } from '@/lib/session-list';
 import { cn } from '@/lib/utils';
 import { SessionProgress } from './SessionProgress';
-import { groupSummary, sessionRowView } from './session-row-view';
+import { groupSummary, selectionOf, sessionRowView } from './session-row-view';
 import { StatusPill } from './StatusPill';
 import { TriCheckbox } from './TriCheckbox';
 
@@ -118,10 +118,7 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
  * ngang trong khung của nó - đầu bảng dính chỉ hoạt động khi khung không cuộn.
  */
 export function SessionTable({ groups, view, onSort, selected, onToggleRows, collapsed, onToggleGroup, onStart, density, now }: SessionTableProps) {
-  const allRows = groups.flatMap((g) => g.rows);
-  const allIds = allRows.map((r) => r.session.id);
-  const pickedAll = allIds.length > 0 && allIds.every((id) => selected.has(id));
-  const pickedSome = allIds.some((id) => selected.has(id));
+  const { ids: allIds, all: pickedAll, some: pickedSome } = selectionOf(groups, selected);
 
   return (
     <div data-density={density} className="group overflow-clip rounded-lg border border-border bg-surface shadow-sm max-[819px]:overflow-x-auto">
