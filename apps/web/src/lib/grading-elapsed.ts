@@ -12,10 +12,25 @@ export function formatGradingElapsed(ms: number): string {
   return `${seconds} giây`;
 }
 
-/** Câu alert hồ sơ đang chấm. Thiếu mốc thời gian → câu ngắn không đồng hồ. */
-export function gradingInProgressMessage(gradingTriggeredAt: string | null | undefined, nowMs: number): string {
-  if (!gradingTriggeredAt) return 'AI đang chấm bài này.';
+/** Quá ngưỡng này ở một bước chấm là lâu hơn bình thường: một lượt chấm thường xong trong vài phút. */
+export const LONG_WAIT_MS = 30 * 60_000;
+
+/**
+ * Câu alert hồ sơ chưa xong. Hai trạng thái nói hai chuyện khác nhau: `ai_grading` là AI đang chấm; `ai_graded` là AI
+ * ĐÃ chấm xong và hệ thống đang xếp loại (chuyển cho giảng viên hay tự chốt), nên không được nói "AI đang chấm".
+ * Thiếu mốc thời gian → câu ngắn không đồng hồ. Quá `LONG_WAIT_MS` thì nói thẳng là có thể bị kẹt, thay vì để đồng
+ * hồ chạy mãi mà không ai biết bài đã đứng.
+ */
+export function gradingInProgressMessage(
+  gradingTriggeredAt: string | null | undefined,
+  nowMs: number,
+  status: string = 'ai_grading',
+): string {
+  const head = status === 'ai_graded' ? 'AI đã chấm xong, hệ thống đang xếp loại bài này' : 'AI đang chấm bài này';
+  if (!gradingTriggeredAt) return `${head}.`;
   const started = Date.parse(gradingTriggeredAt);
-  if (Number.isNaN(started)) return 'AI đang chấm bài này.';
-  return `AI đang chấm bài này - đã ${formatGradingElapsed(nowMs - started)}.`;
+  if (Number.isNaN(started)) return `${head}.`;
+  const waited = nowMs - started;
+  const long = waited >= LONG_WAIT_MS ? ' Lâu hơn bình thường: bài này có thể bị kẹt.' : '';
+  return `${head} - đã ${formatGradingElapsed(waited)}.${long}`;
 }
