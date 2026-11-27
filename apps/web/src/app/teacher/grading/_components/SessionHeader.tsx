@@ -14,6 +14,13 @@ export function submittedLabel(session: SessionOverviewItem): string {
     : `${submitted} bài nộp`;
 }
 
+/** Nhãn nút chấm lại duy nhất: bài lỗi hệ thống, bài bị kẹt, hoặc cả hai. */
+function regradeLabel(systemFailed: number, stuck: number): string {
+  if (stuck === 0) return `Chấm lại ${systemFailed} bài lỗi hệ thống`;
+  if (systemFailed === 0) return `Chấm lại ${stuck} bài bị kẹt`;
+  return `Chấm lại ${systemFailed + stuck} bài lỗi hoặc bị kẹt`;
+}
+
 /**
  * Đầu trang của một phiên (spec §3.3): tên phiên + *Đổi phiên* · lớp, phòng, số bài nộp · *Chốt điểm phiên* (trang
  * riêng, mục 3.10) · *Chấm lại N bài lỗi hệ thống* (chỉ đếm bài lớp system, có hộp xác nhận, §2.3). Không có nút *Xuất điểm* ở
@@ -25,6 +32,7 @@ export function SessionHeader({
   resultCount,
   systemFailed,
   remaining = 0,
+  stuck = 0,
   prepareReviewHref = null,
 }: {
   session: SessionOverviewItem;
@@ -34,6 +42,8 @@ export function SessionHeader({
   systemFailed: number;
   /** Số bài còn chặn việc chốt (đang chấm, chờ duyệt, chưa xử lý). 0 = chốt được. */
   remaining?: number;
+  /** Số bài còn "đang chấm" nhưng không tiến trình nào xử lý: chấm lại chung một nút với bài lỗi hệ thống. */
+  stuck?: number;
   /** Có địa chỉ thì hiện lối xem lại bước chuẩn bị. Màn chuẩn bị sửa được và màn đang xem lại thì để null. */
   prepareReviewHref?: string | null;
 }) {
@@ -68,10 +78,10 @@ export function SessionHeader({
             Chốt điểm phiên
           </Button>
         )}
-        {systemFailed > 0 && (
+        {systemFailed + stuck > 0 && (
           <RegradeButton
-            scope={{ kind: 'session', sessionId, reason: null, count: systemFailed }}
-            label={`Chấm lại ${systemFailed} bài lỗi hệ thống`}
+            scope={{ kind: 'session', sessionId, reason: null, count: systemFailed, ...(stuck > 0 ? { stuck } : {}) }}
+            label={regradeLabel(systemFailed, stuck)}
           />
         )}
       </div>

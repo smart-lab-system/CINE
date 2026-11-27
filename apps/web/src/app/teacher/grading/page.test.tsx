@@ -17,7 +17,6 @@ const h = vi.hoisted(() => ({
   summaries: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null },
   results: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, refetch: vi.fn() },
   progress: { data: undefined as unknown, isLoading: false, isError: false, error: null as Error | null, dataUpdatedAt: 0, refetch: vi.fn() },
-  regradeMutate: vi.fn(),
   online: true,
   prepareProps: [] as unknown[],
   runningProps: [] as unknown[],
@@ -28,7 +27,6 @@ vi.mock('@/hooks/useGrading', () => ({
   useGradingResults: () => h.results,
   useGradingSessionSummaries: () => h.summaries,
   useGradingProgress: () => h.progress,
-  useRegradeStuck: () => ({ mutate: h.regradeMutate, isPending: false, isError: false, error: null, data: undefined }),
 }));
 vi.mock('@/hooks/useOnlineStatus', () => ({ useOnlineStatus: () => h.online }));
 vi.mock('@/hooks/useRulesLink', () => ({ useRulesLink: () => '/teacher/rules?rubric=CTDL' }));
@@ -100,7 +98,6 @@ beforeEach(() => {
   h.summaries = { data: [], isLoading: false, isError: false, error: null };
   h.results = { data: [result()], isLoading: false, isError: false, error: null, refetch: vi.fn() };
   h.progress = { data: progress(), isLoading: false, isError: false, error: null, dataUpdatedAt: 1, refetch: vi.fn() };
-  h.regradeMutate.mockReset();
   h.online = true;
   h.prepareProps.length = 0;
   h.runningProps.length = 0;
@@ -311,6 +308,35 @@ describe('session header (spec §3.3)', () => {
     const button = screen.getByRole('button', { name: 'Chấm lại 1 bài lỗi hệ thống' });
     expect(button).toBeEnabled();
     expect(button).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 1 }));
+  });
+
+  describe('bài bị kẹt dùng chung một nút chấm lại với bài lỗi hệ thống', () => {
+    const stuckProgress = () => progress({ total: 6, pending: 3, done: 3, byStatus: { ai_grading: 3 } });
+    const failed = (id: string) =>
+      result({ id, status: 'flagged_for_review', ungradableReason: 'x', ungradableClass: 'system', currentScore: null });
+
+    it('chỉ có bài kẹt: nút nói số bài kẹt và mang số đó trong scope', () => {
+      h.progress = { ...h.progress, data: stuckProgress() };
+      render(<GradingPage />);
+      const button = screen.getByRole('button', { name: 'Chấm lại 3 bài bị kẹt' });
+      expect(button).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 0, stuck: 3 }));
+    });
+
+    it('có cả hai: một nút duy nhất, scope mang cả hai số', () => {
+      h.progress = { ...h.progress, data: stuckProgress() };
+      h.results = { ...h.results, data: [result({ id: 'a' }), failed('b'), failed('c')] };
+      render(<GradingPage />);
+      const buttons = screen.getAllByRole('button', { name: /^Chấm lại/ });
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]).toHaveTextContent('Chấm lại 5 bài lỗi hoặc bị kẹt');
+      expect(buttons[0]).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 2, stuck: 3 }));
+    });
+
+    it('hàng đợi còn việc sống: không có bài kẹt, không có nút', () => {
+      h.progress = { ...h.progress, data: progress({ total: 6, pending: 3, done: 3, byStatus: { ai_grading: 3 }, queue: { waiting: 0, active: 1, failed: 0 } }) };
+      render(<GradingPage />);
+      expect(screen.queryByRole('button', { name: /^Chấm lại/ })).not.toBeInTheDocument();
+    });
   });
 
   // Review Focus #5: an old API sends no class. A number that may be wrong is worse than no button.
