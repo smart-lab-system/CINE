@@ -21,6 +21,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 - Nguyên nhân: `NominalClassesController` có `@Roles('admin')` (`apps/api/src/master-data/master-data.controllers.ts:229`). `ManualAddStudentForm` gọi `useNominalClasses()` vô điều kiện (`apps/web/src/components/roster/manual-add-student-form.tsx:100`) và form này hiện cho giảng viên khi `canEdit` (`roster-screen.tsx:287-301`).
 - Hướng sửa: nới quyền đọc cho giảng viên, hoặc chỉ gọi hook khi có `catalogAssist`.
 
+- **Xử lý (PR sửa L-01):** chọn hướng "chỉ gọi khi có `catalogAssist`" thay vì nới quyền backend. Danh sách lớp danh nghĩa chỉ dùng để chọn lớp khi TẠO sinh viên mới trong danh mục (`catalogAssist && isNew`), chức năng của admin; giảng viên không cần nó nên không có lý do để mở quyền đọc. `useNominalClasses` nhận thêm `{ enabled }`; `ManualAddStudentForm` truyền `enabled: catalogAssist`.
+
 ### L-02 · Trang "Tạo đề nháp" là ngõ cụt khi thiếu môn · Cao
 - `teacher/exam-bank/new` (ảnh 117, 118) chỉ hiện "Thiếu môn học." và nút quay lại, không có bộ chọn môn.
 - Nguồn: `apps/web/src/app/teacher/exam-bank/new/page.tsx:54`. Nút dẫn tới đây là `/teacher/exam-bank/new?courseId=${effectiveCourseId}` (`exam-bank/page.tsx:51,109`). Khi `effectiveCourseId` rỗng, người dùng không có đường nào tiếp tục.
