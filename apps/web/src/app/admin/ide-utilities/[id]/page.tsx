@@ -15,6 +15,7 @@ import {
   type CatalogExtensionDetail,
   type CatalogStatus,
 } from '@/lib/api/ide-utilities';
+import { approveWarning } from '@/lib/ide-version-approval';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function formatDate(value: string | null) {
@@ -291,7 +292,11 @@ export default function IdeUtilityDetailPage() {
                           type="button"
                           disabled={busy}
                           className="text-primary disabled:opacity-50"
-                          onClick={() => void run(() => approveVersion(v.id))}
+                          onClick={() => {
+                            const warning = approveWarning(v);
+                            if (warning && !window.confirm(warning)) return;
+                            void run(() => approveVersion(v.id));
+                          }}
                         >
                           Duyệt
                         </button>
