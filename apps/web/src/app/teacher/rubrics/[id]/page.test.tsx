@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+
+const h = vi.hoisted(() => ({ kind: 'qs', error: false }));
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'r1' }),
@@ -10,15 +12,16 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/hooks/useGrading', () => ({
   useRubric: () => ({
     isLoading: false,
-    isError: false,
-    data: {
+    isError: h.error,
+    error: h.error ? new Error('Không tải được rubric.') : null,
+    data: h.error ? undefined : {
       id: 'r1',
       teacherId: 't1',
       courseId: 'c1',
       name: '01_largest_product',
       version: 1,
       isActive: true,
-      kind: 'qs',
+      kind: h.kind,
       totalPoints: 7,
       createdAt: '2026-09-15T08:00:00.000Z',
       criteria: [],
@@ -92,6 +95,11 @@ vi.mock('@/hooks/useCurrentAccount', () => ({
 import QsRubricDetailPage from './page';
 
 describe('/teacher/rubrics/[id]', () => {
+  beforeEach(() => {
+    h.kind = 'qs';
+    h.error = false;
+  });
+
   it('hiện thông tin rubric, đề thi và cấu trúc cách giải', () => {
     render(<QsRubricDetailPage />);
     const info = screen.getByRole('region', { name: 'Thông tin rubric' });
@@ -106,5 +114,19 @@ describe('/teacher/rubrics/[id]', () => {
     ).toHaveAttribute('href', '/teacher/exam-bank/e1');
     expect(screen.getByRole('region', { name: /Cách giải 1/ })).toBeInTheDocument();
     expect(screen.getByText('Vòng lồng')).toBeInTheDocument();
+  });
+
+  it('rubric không phải loại theo câu hỏi vẫn có h1 là tên rubric', () => {
+    h.kind = 'qa';
+    render(<QsRubricDetailPage />);
+    expect(screen.getByRole('heading', { level: 1, name: '01_largest_product' })).toBeInTheDocument();
+    expect(screen.getByText(/không phải rubric theo câu hỏi/)).toBeInTheDocument();
+  });
+
+  it('khi không tải được rubric vẫn có h1 và nói lý do', () => {
+    h.error = true;
+    render(<QsRubricDetailPage />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Chi tiết rubric' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Không tải được rubric.');
   });
 });

@@ -51,6 +51,7 @@ describe('/teacher/grading/finalize', () => {
   it('without a session in the URL, asks to choose one', () => {
     search = '';
     render(<FinalizePage />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Chưa chọn phiên thi' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Chọn phiên' })).toHaveAttribute('href', '/teacher/grading');
     expect(screen.queryByTestId('finalize-panel')).not.toBeInTheDocument();
   });

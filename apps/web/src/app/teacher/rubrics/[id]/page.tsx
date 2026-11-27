@@ -62,6 +62,7 @@ export default function QsRubricDetailPage() {
             Quay lại danh sách
           </Link>
         </Button>
+        <PageHeader title="Chi tiết rubric" />
         <Alert variant="destructive">
           <AlertDescription>
             {detail.error instanceof Error
@@ -82,6 +83,7 @@ export default function QsRubricDetailPage() {
             Quay lại danh sách
           </Link>
         </Button>
+        <PageHeader title={rubric.name} />
         <Alert>
           <AlertDescription>
             Rubric này không phải rubric theo câu hỏi. Xem cấu trúc chung ở Bảng lỗi.

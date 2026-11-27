@@ -38,6 +38,7 @@ function FinalizeContent() {
       <EmptyState
         icon={ClipboardCheck}
         title="Chưa chọn phiên thi"
+        titleAs="h1"
         description="Chốt điểm được làm cho từng phiên. Chọn một phiên từ màn Chấm điểm để bắt đầu."
         action={
           <Button asChild variant="outline">

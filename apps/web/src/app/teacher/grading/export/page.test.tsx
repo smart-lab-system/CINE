@@ -33,7 +33,7 @@ describe('/teacher/grading/export', () => {
   it('without a session it asks for one', () => {
     query = '';
     render(<ExportPage />);
-    expect(screen.getByText(/Chưa chọn phiên thi/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Chưa chọn phiên thi' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Chọn phiên' })).toHaveAttribute('href', '/teacher/grading');
   });
 
