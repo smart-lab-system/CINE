@@ -195,7 +195,7 @@ export function SessionExamRosterCard({
 
   function onAdd(payload: AddStudentPayload) {
     if ('studentId' in payload) {
-      toast.error('Thêm từ catalog chưa hỗ trợ trên danh sách thi - nhập MSSV và họ tên.');
+      toast.error('Thêm từ danh mục chưa hỗ trợ trên danh sách thi - nhập MSSV và họ tên.');
       return;
     }
     addStudent.mutate(

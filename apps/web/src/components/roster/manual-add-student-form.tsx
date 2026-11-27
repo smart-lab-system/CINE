@@ -245,7 +245,7 @@ export function ManualAddStudentForm({
           nominalClassId,
           status: 'active',
         });
-        toast.success(`Đã tạo sinh viên mới ${m} trong catalog`);
+        toast.success(`Đã tạo sinh viên mới ${m} trong danh mục`);
         await onAdd({ studentId: created.id });
         reset();
         return;
