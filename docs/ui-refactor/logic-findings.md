@@ -192,6 +192,8 @@ Các mục **không** phải lỗi seed vẫn còn nguyên, cần sửa ở sả
 
 ---
 
+- **Xử lý (PR sửa L-25): chủ dự án quyết định hiện số % cho bài không có lỗi (27/11/2026).** Ban đầu spec `2026-10-21-cham-diem-duyet-nhanh-design.md` §5.8b chủ đích ẩn số % ở bài sạch (giá trị 1,0 chỉ nói về độ phủ; ở lượt `ngan-xep-v2` lượt 1, 3 trên 10 bài confidence 100% vẫn điểm sai). Chủ dự án chọn hiện số để minh chứng độ chính xác nên spec §5.8b, câu hỏi mở số 8 và danh sách test đã sửa theo. Hero hiện số %, vạch ngưỡng và chip theo θ, kèm dòng "đến từ mức kiểm tra bài (độ phủ), không phải từ một lỗi cụ thể", và "Độ khớp với bạn" vẫn đặt cạnh số. Lưu ý đã nói với chủ dự án: số này vẫn là confidence tự gán theo độ phủ, chưa hiệu chỉnh với nhãn giảng viên.
+
 ## G. Chấm lại các màn chấm điểm sau khi seed lại
 
 Chấm lại 48 ảnh (24 màn × 2 viewport) trên dữ liệu đã sửa. Điểm trung bình **6,06/10** (390px 5,83; desktop 6,29). Chi tiết: [grading-regrade.csv](grading-regrade.csv).

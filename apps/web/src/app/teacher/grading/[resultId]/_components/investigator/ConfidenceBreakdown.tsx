@@ -40,7 +40,7 @@ export function ConfidenceBreakdown({
     <section aria-label="Mức chắc chắn tính từ đâu" className="flex flex-col gap-2 rounded-md border border-border bg-surface p-3">
       <h3 className="section-label">Mức chắc chắn tính từ đâu</h3>
       {terms.length === 0 ? (
-        <p className="text-small text-muted-foreground">Không có lỗi nào có điểm để đo, nên mức chắc chắn không lấy từ lỗi nào.</p>
+        <p className="text-small text-muted-foreground">Không có lỗi nào có điểm để đo, nên mức chắc chắn không lấy từ lỗi nào mà lấy từ mức kiểm tra bài: kiểm tra đủ thì bài có mức cao nhất; chưa đủ thì bài bị gắn cờ cho bạn xem.</p>
       ) : (
         <Table className="text-small">
           <thead>
