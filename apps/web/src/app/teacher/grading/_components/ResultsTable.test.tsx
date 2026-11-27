@@ -153,7 +153,7 @@ describe('ResultsTable - how the list was graded', () => {
 
   it('two or more rows all graded by reading: says it once and drops the per-row chip', () => {
     render(<ResultsTable {...props({ results: [code('p'), code('q')] })} />);
-    expect(screen.getAllByText(/Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy/)).toHaveLength(1);
+    expect(screen.getAllByText(/Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy thử./)).toHaveLength(1);
     expect(screen.queryByText('Chấm bằng đọc mã, không chạy')).not.toBeInTheDocument();
   });
 

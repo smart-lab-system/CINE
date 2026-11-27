@@ -54,7 +54,7 @@ Chủ dự án chọn B (27/11/2026). Lý do: việc chính của danh sách là
 
 ### 5.1 PR 1 — thẻ dưới 820px cho hai danh sách
 
-**Chọn cách vẽ.** Một hook `useMediaQuery('(max-width: 819px)')` quyết định vẽ bảng hay thẻ; mỗi lần chỉ MỘT cách có trong DOM. Không dùng hai bản trong DOM ẩn bằng CSS: test của hai bảng có 54 truy vấn `getBy*`, và jsdom không áp Tailwind nên mọi truy vấn sẽ gặp hai kết quả. `vitest.setup.ts` đã có stub `matchMedia` trả `matches: false`, nên test hiện có chạy trên nhánh bảng không đổi; thêm test riêng cho nhánh thẻ bằng cách ghi đè `window.matchMedia`. Giá trị ban đầu là `false` (khớp SSR); hai danh sách chỉ vẽ sau khi dữ liệu tải xong nên không có lần nháy bảng rồi thẻ. Hook đặt ở `src/hooks/`, không đọc dữ liệu nào khác.
+**Chọn cách vẽ.** Một hook `useMediaQuery('(max-width: 819px)')` quyết định vẽ bảng hay thẻ; mỗi lần chỉ MỘT cách có trong DOM. Không dùng hai bản trong DOM ẩn bằng CSS: test của hai bảng có 54 truy vấn `getBy*`, và jsdom không áp Tailwind nên mọi truy vấn sẽ gặp hai kết quả. `vitest.setup.ts` đã có stub `matchMedia` trả `matches: false`, nên test hiện có chạy trên nhánh bảng không đổi; thêm test riêng cho nhánh thẻ bằng cách ghi đè `window.matchMedia`. Hook dùng `useSyncExternalStore`: ở trình duyệt lần render đầu đã đọc đúng giá trị (không có khung hình bảng rồi mới đổi sang thẻ, kể cả khi quay lại danh sách bằng điều hướng phía client), ở server trả `false` và React đồng bộ lại khi hydrate; có đường lùi sang `addListener`/`removeListener` cho Safari trước 14. (Bản đầu của spec này nói "giá trị ban đầu là `false` nên không nháy" - sai, vì danh sách được mount khi dữ liệu đã có sẵn trong bộ nhớ đệm; đã sửa ở lượt review.) Hook đặt ở `src/hooks/`, không đọc dữ liệu nào khác.
 
 **Một mô hình hàng dùng chung.** Rút phần tính ra khỏi `Row` của `SessionTable` thành một hàm thuần (ngày giờ, nhãn loại, dòng phụ, ghi chú, hành động, nhãn `aria-label` của nút) để bảng và thẻ cùng đọc; tương tự cho `ResultsTable` (nhãn điểm, đếm lỗi, lý do). Đây là cách chặn thẻ lệch bảng.
 
@@ -73,7 +73,7 @@ Chủ dự án chọn B (27/11/2026). Lý do: việc chính của danh sách là
 - Dòng 3 (chữ phụ): số lỗi · lý do cần bạn (tối đa 2 dòng); dòng này luôn có để không mất cột "Vì sao cần bạn".
 - MSSV là liên kết duy nhất tới hồ sơ; không biến cả thẻ thành liên kết (tránh liên kết lồng trong liên kết).
 
-**Chip "Chấm bằng đọc mã, không chạy" (lựa chọn của tôi, bỏ được).** Khi từ hai bài trở lên đang hiện đều chấm bằng cách này (một bài đơn lẻ giữ chip riêng), hiện MỘT lần ở đầu danh sách ("Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy.") và bỏ chip khỏi từng hàng, cả bảng lẫn thẻ; bài khác cách giữ chip riêng. Chỉ là suy ra cách hiện từ dữ liệu đã có.
+**Chip "Chấm bằng đọc mã, không chạy" (lựa chọn của tôi, bỏ được).** Khi từ hai bài trở lên đang hiện đều chấm bằng cách này (một bài đơn lẻ giữ chip riêng), hiện MỘT lần ở đầu danh sách ("Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy thử."; đúng dạng trong glossary) và bỏ chip khỏi từng hàng, cả bảng lẫn thẻ; bài khác cách giữ chip riêng. Chỉ là suy ra cách hiện từ dữ liệu đã có.
 
 **Khung chọn nhóm "Tất cả" và bộ lọc, header trang:** không đổi.
 

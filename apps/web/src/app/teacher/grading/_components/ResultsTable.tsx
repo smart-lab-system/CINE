@@ -57,7 +57,7 @@ export function ResultsTable({
       </div>
 
       {sharedReadingCode && (
-        <p className="text-caption text-muted-foreground">Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy.</p>
+        <p className="text-caption text-muted-foreground">Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy thử.</p>
       )}
 
       {views.length === 0 ? (
