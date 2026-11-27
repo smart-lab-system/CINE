@@ -3,7 +3,9 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck } from 'lucide-react';
+import { EmptyState } from '@/components/layout/empty-state';
+import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGradingResults } from '@/hooks/useGrading';
@@ -32,12 +34,16 @@ function FinalizeContent() {
 
   if (!sessionId) {
     return (
-      <p className="text-small text-muted-foreground">
-        Chưa chọn phiên thi.{' '}
-        <Link href="/teacher/grading" className="font-semibold underline underline-offset-2">
-          Chọn phiên
-        </Link>
-      </p>
+      <EmptyState
+        icon={ClipboardCheck}
+        title="Chưa chọn phiên thi"
+        description="Chốt điểm được làm cho từng phiên. Chọn một phiên từ màn Chấm điểm để bắt đầu."
+        action={
+          <Button asChild variant="outline">
+            <Link href="/teacher/grading">Chọn phiên</Link>
+          </Button>
+        }
+      />
     );
   }
   if (!session) {
