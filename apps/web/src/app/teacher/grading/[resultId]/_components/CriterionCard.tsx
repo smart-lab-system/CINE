@@ -103,7 +103,7 @@ export function CriterionCard({
       <button
         type="button"
         onClick={onActivate}
-        style={{ borderLeftColor: `hsl(${hueFor(index)})` }}
+        style={{ borderLeftColor: hueFor(index) }}
         className="flex w-full items-start gap-3 border-l-[3px] px-4 py-3.5 text-left hover:bg-surface-2"
       >
         <span className="min-w-0">
@@ -159,7 +159,7 @@ export function CriterionCard({
         <div>
           <span className="section-label mb-1 block">Trích dẫn từ bài làm</span>
           <div
-            style={{ borderLeftColor: `hsl(${hueFor(index)})` }}
+            style={{ borderLeftColor: hueFor(index) }}
             className="rounded-r-sm border-l-[3px] bg-surface-2 px-3 py-2 text-small leading-relaxed"
           >
             {criterion.evidence ? `„${criterion.evidence}”` : 'AI không đưa trích dẫn nào.'}

@@ -5,8 +5,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { SubmissionText, SubmissionTextSpan } from '@/lib/api/grading';
 import { reducedMotionScrollBehavior, scrollIntoContainer } from './scroll-into-container';
 
-/** Một hue cho mỗi tiêu chí, theo thứ tự trong rubric. */
-const HUES = ['var(--ev-1)', 'var(--ev-2)', 'var(--ev-3)', 'var(--ev-4)'];
+/** Một màu cho mỗi tiêu chí, theo thứ tự trong rubric. Là màu đầy đủ từ token --ev-N, dùng thẳng làm giá trị CSS. */
+const HUES = ['hsl(var(--ev-1))', 'hsl(var(--ev-2))', 'hsl(var(--ev-3))', 'hsl(var(--ev-4))'];
 
 export function hueFor(index: number): string {
   return HUES[index % HUES.length];
@@ -172,7 +172,7 @@ function renderParagraph(
         data-criterion={span.criterionId}
         data-active={active}
         onClick={() => options.onSelectCriterion(span.criterionId)}
-        style={{ backgroundColor: `hsl(${hueFor(options.criterionIndexOf(span.criterionId))})` }}
+        style={{ backgroundColor: hueFor(options.criterionIndexOf(span.criterionId)) }}
         className={[
           'cursor-pointer rounded-[3px] px-0.5 text-foreground transition-shadow duration-200 ease-smooth',
           'scroll-mt-4',
