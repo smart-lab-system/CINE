@@ -249,7 +249,7 @@ export default function GradingDetailPage({
         </div>
       </div>
 
-      {readOnly && <GradingInProgressAlert gradingTriggeredAt={result.gradingTriggeredAt} />}
+      {readOnly && <GradingInProgressAlert gradingTriggeredAt={result.gradingTriggeredAt} status={result.status} />}
 
       {readsCode && (
         <Alert variant="info">

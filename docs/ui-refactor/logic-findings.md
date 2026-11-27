@@ -76,6 +76,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 - Ảnh 57, 58: banner "AI đang chấm bài này - đã 172 giờ". Bài đã ở `ai_graded`.
 - Đã đọc hàm: `gradingInProgressMessage` (`apps/web/src/lib/grading-elapsed.ts`) chỉ dựa vào `gradingTriggeredAt`, không dựa vào trạng thái. Lỗi nằm ở điều kiện hiển thị banner. Cần kiểm chỗ gọi hàm.
 
+- **Xử lý (PR sửa L-12):** đọc backend cho thấy `ai_graded` là trạng thái chuyển tiếp THẬT (AI đã trả lời, chờ xếp loại sang `auto_approved` hoặc `flagged_for_review`, `grading.service.ts`), nên việc khoá hồ sơ ở trạng thái này là đúng. Lỗi nằm ở câu chữ và đồng hồ: banner nói "AI đang chấm" cho cả `ai_graded` và đếm mãi không ngưỡng. Đã sửa: `ai_graded` nói "AI đã chấm xong, hệ thống đang xếp loại"; quá 30 phút ở một bước thì thêm "Lâu hơn bình thường: bài này có thể bị kẹt". Bài đứng ở `ai_graded` hàng trăm giờ trong ảnh phần lớn là hiện vật của seed (seed ghi thẳng `ai_graded`, không qua bộ xếp loại); nếu xảy ra thật là một job chết giữa chừng và hiện chưa có nút gỡ kẹt cho trạng thái này (backend).
+
 ### L-13 · Hai bài có cùng đoạn code nhưng điểm khác nhau · Cao · Nghi ngờ
 - Ảnh 59, 60 (bài [SV]) và 67, 68 (bài [SV]): code giống hệt nhau, nhưng điểm 5/5 với độ tin cậy 0,66 và 2,5/5 với 0,88.
 - Có thể do seed trùng nội dung, hoặc do chấm không xác định. Cần kiểm dữ liệu đầu vào.

@@ -119,7 +119,7 @@ export function InvestigatorDossier({ resultId, sessionId }: { resultId: string;
     return (
       <div className="flex flex-col gap-4">
         {header(result.status, result.ungradableReason)}
-        <GradingInProgressAlert gradingTriggeredAt={result.gradingTriggeredAt} />
+        <GradingInProgressAlert gradingTriggeredAt={result.gradingTriggeredAt} status={result.status} />
         {dialog(null, result.status)}
       </div>
     );
