@@ -39,8 +39,6 @@ const props = (over: Partial<Props> = {}): Props => ({
   onRetry: vi.fn(),
   results: finished,
   online: true,
-  onRegradeStuck: vi.fn(),
-  regrade: { isPending: false, isError: false, error: null, data: undefined },
   ...over,
 });
 
@@ -129,12 +127,11 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
   describe('a stuck result: pending work and a queue with nothing alive', () => {
     const stuck = () => props({ progress: progress({ pending: 3, done: 7, byStatus: { ai_grading: 3 }, queue: { waiting: 0, active: 0, failed: 0 } }) });
 
-    it('says how many are stuck and offers to continue exactly those', () => {
-      const onRegradeStuck = vi.fn();
-      render(<RunningPanel {...stuck()} onRegradeStuck={onRegradeStuck} />);
+    it('says how many are stuck and points to the one regrade button at the top - no button of its own', () => {
+      render(<RunningPanel {...stuck()} />);
       expect(screen.getByRole('alert')).toHaveTextContent('3 bài đang bị kẹt');
-      fireEvent.click(screen.getByRole('button', { name: 'Chấm lại 3 bài bị kẹt' }));
-      expect(onRegradeStuck).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('alert')).toHaveTextContent('Bấm nút chấm lại ở đầu trang');
+      expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
     });
 
     it('says how long the count has stood still', () => {
@@ -152,16 +149,6 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
     it('is NOT stuck while jobs are waiting their turn', () => {
       render(<RunningPanel {...props({ progress: progress({ queue: { waiting: 5, active: 0, failed: 0 } }) })} />);
       expect(screen.queryByText(/đang bị kẹt/)).not.toBeInTheDocument();
-    });
-
-    it('reads the outcome back as requeued out of stuck', () => {
-      render(<RunningPanel {...stuck()} regrade={{ isPending: false, isError: false, error: null, data: { stuck: 3, requeued: 2 } }} />);
-      expect(screen.getByText('Đã xếp lại 2/3 bài.')).toBeInTheDocument();
-    });
-
-    it('shows the server message verbatim if requeueing fails', () => {
-      render(<RunningPanel {...stuck()} regrade={{ isPending: false, isError: true, error: new Error('Hàng đợi tạm dừng'), data: undefined }} />);
-      expect(screen.getByText('Hàng đợi tạm dừng')).toBeInTheDocument();
     });
 
     it('offers nothing while the machine is offline', () => {

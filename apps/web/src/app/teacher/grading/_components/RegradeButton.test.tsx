@@ -4,8 +4,14 @@ import '@testing-library/jest-dom/vitest';
 import { RegradeButton, type RegradeScope } from './RegradeButton';
 
 const fresh = () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, error: null as Error | null });
-const h = vi.hoisted(() => ({ one: null as unknown as ReturnType<typeof fresh>, many: null as unknown as ReturnType<typeof fresh> }));
-vi.mock('@/hooks/useRegrade', () => ({ useRegradeResult: () => h.one, useRegradeUngradable: () => h.many }));
+const h = vi.hoisted(() => ({
+  one: null as unknown as ReturnType<typeof fresh>,
+  many: null as unknown as ReturnType<typeof fresh>,
+  forceAi: null as unknown as ReturnType<typeof fresh>,
+  stuck: null as unknown as ReturnType<typeof fresh>,
+}));
+vi.mock('@/hooks/useRegrade', () => ({ useRegradeResult: () => h.one, useRegradeUngradable: () => h.many, useRegradeAiScored: () => h.forceAi }));
+vi.mock('@/hooks/useGrading', () => ({ useRegradeStuck: () => h.stuck }));
 const toastSpy = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('sonner', () => ({ toast: toastSpy }));
 
@@ -19,6 +25,8 @@ beforeEach(() => {
   toastSpy.error.mockReset();
   h.one = fresh();
   h.many = fresh();
+  h.forceAi = fresh();
+  h.stuck = fresh();
 });
 
 const open = (label: string) => fireEvent.click(screen.getByRole('button', { name: label }));
@@ -144,5 +152,62 @@ describe('RegradeButton (G3 §4.4, D10)', () => {
     open('Chấm lại bài này');
     confirm();
     expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 1 bài', { description: undefined });
+  });
+
+  describe('bài bị kẹt chấm lại cùng một lần bấm', () => {
+    it('không có bài kẹt thì không đụng tới đường chấm lại bài kẹt', () => {
+      render(<RegradeButton scope={session()} label="Chấm lại" />);
+      open('Chấm lại');
+      confirm();
+      expect(h.stuck.mutate).not.toHaveBeenCalled();
+    });
+
+    it('chỉ có bài kẹt: hộp xác nhận nói số bài kẹt, chỉ gọi đường bài kẹt', () => {
+      h.stuck.mutate = vi.fn((_v: unknown, options: { onSuccess: (o: unknown) => void }) =>
+        options.onSuccess({ stuck: 3, requeued: 3 }),
+      );
+      render(<RegradeButton scope={session({ count: 0, stuck: 3 })} label="Chấm lại 3 bài bị kẹt" />);
+      open('Chấm lại 3 bài bị kẹt');
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent('Chấm lại 3 bài?');
+      expect(dialog).toHaveTextContent('3 bài đang bị kẹt');
+      confirm();
+      expect(h.many.mutate).not.toHaveBeenCalled();
+      expect(h.stuck.mutate).toHaveBeenCalledTimes(1);
+      expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 3 bài', { description: undefined });
+    });
+
+    it('có cả hai: chấm lại bài lỗi hệ thống trước, rồi bài kẹt, gộp thành một thông báo', () => {
+      h.many.mutate = vi.fn((_r: unknown, options: { onSuccess: (o: unknown) => void }) =>
+        options.onSuccess({ requeued: 2, skipped: [] }),
+      );
+      h.stuck.mutate = vi.fn((_v: unknown, options: { onSuccess: (o: unknown) => void }) =>
+        options.onSuccess({ stuck: 3, requeued: 3 }),
+      );
+      render(<RegradeButton scope={session({ count: 2, stuck: 3 })} label="Chấm lại 5 bài lỗi hoặc bị kẹt" />);
+      open('Chấm lại 5 bài lỗi hoặc bị kẹt');
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent('Chấm lại 5 bài?');
+      expect(dialog).toHaveTextContent('2 bài không chấm được do lỗi phía hệ thống và 3 bài đang bị kẹt');
+      confirm();
+      expect(h.many.mutate).toHaveBeenCalledWith(null, expect.any(Object));
+      expect(h.stuck.mutate).toHaveBeenCalledTimes(1);
+      expect(toastSpy.success).toHaveBeenCalledTimes(1);
+      expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 5 bài', { description: undefined });
+    });
+
+    it('bài lỗi hệ thống đã xếp lại mà bài kẹt thất bại: báo phần đã làm được và nêu lỗi của phần còn lại', () => {
+      h.many.mutate = vi.fn((_r: unknown, options: { onSuccess: (o: unknown) => void }) =>
+        options.onSuccess({ requeued: 2, skipped: [] }),
+      );
+      h.stuck.mutate = vi.fn((_v: unknown, options: { onError: (e: Error) => void }) =>
+        options.onError(new Error('Hàng đợi tạm dừng')),
+      );
+      render(<RegradeButton scope={session({ count: 2, stuck: 3 })} label="Chấm lại 5 bài lỗi hoặc bị kẹt" />);
+      open('Chấm lại 5 bài lỗi hoặc bị kẹt');
+      confirm();
+      expect(toastSpy.success).toHaveBeenCalledWith('Đã xếp lại 2 bài', { description: undefined });
+      expect(toastSpy.error).toHaveBeenCalledWith('Hàng đợi tạm dừng');
+    });
   });
 });

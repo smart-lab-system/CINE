@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useRegradeStuck } from '@/hooks/useGrading';
 import { useRegradeAiScored, useRegradeResult, useRegradeUngradable } from '@/hooks/useRegrade';
 import type { RegradeOutcome } from '@/lib/api/regrade';
 
@@ -24,7 +25,15 @@ function groupSkipped(outcome: RegradeOutcome | null): Map<string, number> {
 
 export type RegradeScope =
   | { kind: 'result'; sessionId: string; resultId: string }
-  | { kind: 'session'; sessionId: string; reason: string | null; count: number }
+  | {
+      kind: 'session';
+      sessionId: string;
+      reason: string | null;
+      /** Bài không chấm được do lỗi hệ thống (có thể 0 khi chỉ có bài bị kẹt). */
+      count: number;
+      /** Bài còn "đang chấm" nhưng không tiến trình nào xử lý: chấm lại cùng một lần bấm. */
+      stuck?: number;
+    }
   /** Ép chấm lại bằng AI bài đã có điểm (xoá kết quả AI cũ). */
   | { kind: 'force-ai'; sessionId: string; resultId: string };
 
@@ -47,12 +56,17 @@ export function RegradeButton({
   const one = useRegradeResult(scope.sessionId);
   const many = useRegradeUngradable(scope.sessionId);
   const forceAi = useRegradeAiScored(scope.sessionId);
+  const stuckMutation = useRegradeStuck(scope.sessionId);
   const [open, setOpen] = useState(false);
   const [outcome, setOutcome] = useState<RegradeOutcome | null>(null);
 
   const mutation =
     scope.kind === 'force-ai' ? forceAi : scope.kind === 'result' ? one : many;
-  const count = scope.kind === 'session' ? scope.count : 1;
+  const stuck = scope.kind === 'session' ? (scope.stuck ?? 0) : 0;
+  const systemCount = scope.kind === 'session' ? scope.count : 0;
+  const count = scope.kind === 'session' ? scope.count + stuck : 1;
+  const pending = mutation.isPending || (stuck > 0 && stuckMutation.isPending);
+  const failure = mutation.error ?? (stuck > 0 ? stuckMutation.error : null);
 
   const done = (data: RegradeOutcome) => {
     setOutcome(data);
@@ -71,7 +85,25 @@ export function RegradeButton({
   const confirm = () => {
     if (scope.kind === 'force-ai') forceAi.mutate(scope.resultId, { onSuccess: done, onError: failed });
     else if (scope.kind === 'result') one.mutate(scope.resultId, { onSuccess: done, onError: failed });
-    else many.mutate(scope.reason, { onSuccess: done, onError: failed });
+    else {
+      // Bài bị kẹt chấm lại bằng đường riêng (xếp lại việc đang treo): chạy sau lượt bài lỗi hệ thống, gộp kết quả.
+      const runStuck = (prior: RegradeOutcome | null) =>
+        stuckMutation.mutate(undefined, {
+          onSuccess: (s) => done({ requeued: (prior?.requeued ?? 0) + s.requeued, skipped: prior?.skipped ?? [] }),
+          onError: (error) => {
+            if (prior) done(prior);
+            failed(error);
+          },
+        });
+      if (systemCount > 0) {
+        many.mutate(scope.reason, {
+          onSuccess: (outcome) => (stuck > 0 ? runStuck(outcome) : done(outcome)),
+          onError: failed,
+        });
+      } else if (stuck > 0) {
+        runStuck(null);
+      }
+    }
   };
 
   const skippedByReason = groupSkipped(outcome);
@@ -86,8 +118,12 @@ export function RegradeButton({
       ? 'Điểm và giải trình AI hiện tại sẽ bị xoá. Bài được chấm lại từ đầu bằng mô hình (có tính phí). Đóng trang không dừng việc chấm - kết quả hiện lại khi xong.'
       : scope.kind === 'result'
         ? 'Bài này sẽ được chấm lại từ đầu. Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm - kết quả hiện ở danh sách khi xong.'
-        : `Bạn sắp chấm lại ${count} bài không chấm được do lỗi phía hệ thống${
-            scope.reason ? ` - cùng lý do: "${scope.reason}"` : ''
+        : `Bạn sắp chấm lại ${
+            stuck > 0
+              ? systemCount > 0
+                ? `${systemCount} bài không chấm được do lỗi phía hệ thống và ${stuck} bài đang bị kẹt (không còn tiến trình chấm nào xử lý)`
+                : `${stuck} bài đang bị kẹt (không còn tiến trình chấm nào xử lý)`
+              : `${count} bài không chấm được do lỗi phía hệ thống${scope.reason ? ` - cùng lý do: “${scope.reason}”` : ''}`
           }. Mỗi bài là một lượt gọi mô hình có tính phí. Đóng trang không dừng việc chấm - kết quả hiện ở danh sách khi xong.`;
 
   return (
@@ -99,6 +135,7 @@ export function RegradeButton({
           size={size}
           onClick={() => {
             mutation.reset(); // một lỗi cũ không được hiện lại khi mở hộp lần sau
+            stuckMutation.reset();
             setOutcome(null);
             setOpen(true);
           }}
@@ -127,16 +164,16 @@ export function RegradeButton({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          {mutation.isError && mutation.error && (
+          {failure && (
             <Alert variant="destructive">
-              <AlertDescription>{mutation.error.message}</AlertDescription>
+              <AlertDescription>{failure.message}</AlertDescription>
             </Alert>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Huỷ
             </Button>
-            <Button type="button" loading={mutation.isPending} onClick={confirm}>
+            <Button type="button" loading={pending} onClick={confirm}>
               {scope.kind === 'force-ai' ? 'Xác nhận chấm lại bằng AI' : 'Xác nhận chấm lại'}
             </Button>
           </DialogFooter>
