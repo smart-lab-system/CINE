@@ -57,6 +57,15 @@ function formatDateTime(iso: string): string {
  * Hub Thiết lập phiên - stepper năm bước (spec 2026-10-22).
  * Không thay màn vận hành live tại `/exam-sessions/[id]`.
  */
+/** Nhãn cho phiên không còn sửa được. Phiên đang thi vẫn xem được tài liệu, nên chỉ nói là chỉ xem. */
+const READ_ONLY_LABEL: Record<string, string> = {
+  active: 'Phiên đang thi, chỉ xem.',
+  collecting: 'Đã đóng thi, chỉ xem.',
+  completed: 'Phiên đã kết thúc, chỉ xem.',
+  cancelled: 'Phiên đã huỷ, chỉ xem.',
+  missed: 'Phiên đã bỏ lỡ, chỉ xem.',
+};
+
 export default function ExamSessionSetupPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
@@ -247,6 +256,8 @@ function SetupBody({
   const setup = useSetupDraft();
   const session = detail.data!;
   const mutable = session.status === 'scheduled' || session.status === 'not_ready';
+  // Lý do ngắn cho người đang xem phiên không sửa được (xem SetupFooter). Phiên nháp/đã lên lịch thì không cần nhãn.
+  const readOnlyLabel = mutable ? null : (READ_ONLY_LABEL[session.status] ?? null);
   const canCancel = mutable || session.status === 'missed';
   const [pendingLeave, setPendingLeave] = useState<SetupStepId | null>(null);
 
@@ -476,6 +487,7 @@ function SetupBody({
       <SetupFooter
         step={step}
         mutable={mutable}
+        readOnlyLabel={readOnlyLabel}
         pending={pending}
         onBack={() => requestLeave(SETUP_STEPS[index - 1]!.id)}
         onNext={() => requestLeave(SETUP_STEPS[index + 1]!.id)}

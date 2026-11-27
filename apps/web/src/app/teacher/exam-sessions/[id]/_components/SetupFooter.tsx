@@ -13,6 +13,7 @@ import type { SetupStepId } from './setup-draft';
 export function SetupFooter({
   step,
   mutable,
+  readOnlyLabel = null,
   pending,
   onBack,
   onNext,
@@ -20,6 +21,8 @@ export function SetupFooter({
 }: {
   step: SetupStepId;
   mutable: boolean;
+  /** Phiên không cho sửa nữa (đã huỷ, đã kết thúc, đang thi): nói rõ lý do và đưa "Tiếp tục" xuống hàng phụ. */
+  readOnlyLabel?: string | null;
   pending: boolean;
   onBack: () => void;
   onNext: () => void;
@@ -62,11 +65,17 @@ export function SetupFooter({
         style={frame ? { left: frame.left, width: frame.width, right: 'auto' } : undefined}
       >
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {readOnlyLabel && (
+            <span className="mr-auto flex items-center gap-2 text-caption text-muted-foreground">
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+              {readOnlyLabel}
+            </span>
+          )}
           <Button type="button" variant="outline" size="lg" disabled={index <= 0 || pending} onClick={onBack}>
             Quay lại
           </Button>
           {!last && (
-            <Button type="button" size="lg" disabled={pending} onClick={onNext}>
+            <Button type="button" size="lg" variant={readOnlyLabel ? 'outline' : 'default'} disabled={pending} onClick={onNext}>
               Tiếp tục
             </Button>
           )}

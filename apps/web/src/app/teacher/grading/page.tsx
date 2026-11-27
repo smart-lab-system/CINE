@@ -13,7 +13,7 @@ import {
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useRulesLink } from '@/hooks/useRulesLink';
 import { useSessionOverview } from '@/hooks/useSubmissionOverview';
-import { STATE_ORDER, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
+import { STATE_ORDER, blockers, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import { countSystemUngradable } from '@/lib/regrade-triage';
 import { AiServiceBand } from './_components/AiServiceBand';
@@ -146,6 +146,7 @@ function SessionScreen({
         sessionId={sessionId}
         resultCount={list.length}
         systemFailed={countSystemUngradable(list)}
+        remaining={blockers(list).remaining}
         prepareReviewHref={showPrepareLink ? prepareHref : null}
       />
       <RulerOriginNote sessionId={sessionId} />
