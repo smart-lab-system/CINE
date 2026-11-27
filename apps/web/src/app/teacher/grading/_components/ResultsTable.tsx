@@ -5,31 +5,11 @@ import { EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/status-pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { isMakeupSubmission } from '@/lib/grading-triage';
-import {
-  STATE_LABEL,
-  STATE_ORDER,
-  countStates,
-  errorCounts,
-  isReadingCode,
-  reasonOf,
-  scoreCell,
-  sortByState,
-  stateOf,
-  type SessionState,
-} from '@/lib/session-triage';
+import { STATE_LABEL, STATE_ORDER, countStates, sortByState, stateOf, type SessionState } from '@/lib/session-triage';
 import type { GradingResult } from '@/lib/api/grading';
+import { resultRowView } from './result-row-view';
 
 export type ResultsFilter = SessionState | 'all';
-
-function errorsText(triage: GradingResult['triage']): string {
-  const counts = errorCounts(triage);
-  if (counts === null) return '-';
-  const parts: string[] = [];
-  if (counts.counted > 0) parts.push(`${counts.counted} đã trừ`);
-  if (counts.unpriced > 0) parts.push(`${counts.unpriced} chờ giá`);
-  return parts.length > 0 ? parts.join(' · ') : 'Không lỗi nào';
-}
 
 /**
  * Danh sách bài của phiên (spec §3.3): sinh viên (MSSV là link mở hồ sơ) · trạng thái · điểm (kèm *tạm tính* /
@@ -53,12 +33,6 @@ export function ResultsTable({
 }) {
   const counts = countStates(results);
   const shown = sortByState(filter === 'all' ? results : results.filter((r) => stateOf(r) === filter));
-
-  const reasonCell = (r: GradingResult) => {
-    const reason = reasonOf(r);
-    if (reason !== null) return reason;
-    return stateOf(r) === 'needsYou' ? 'Mở hồ sơ để xem lý do.' : '-';
-  };
 
   return (
     <section aria-label="Danh sách bài" className="flex flex-col gap-3">
@@ -91,39 +65,36 @@ export function ResultsTable({
             </TableHeader>
             <TableBody>
               {shown.map((r) => {
-                const state = stateOf(r);
-                const score = scoreCell(r, state);
+                const v = resultRowView(r, { sessionId, sessionClassId });
                 return (
                   <TableRow key={r.id}>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
-                          href={`/teacher/grading/${r.id}?sessionId=${sessionId}`}
+                          href={v.href}
                           className="font-medium text-accent-strong hover:underline"
                         >
-                          {r.studentMssv}
+                          {v.mssv}
                         </Link>
-                        <span>{r.studentName}</span>
-                        {isMakeupSubmission(r.homeClassId, sessionClassId) && (
-                          <Badge variant="info">Thi bù - {r.homeClassName ?? r.homeClassId}</Badge>
-                        )}
-                        {isReadingCode(r) ? (
+                        <span>{v.name}</span>
+                        {v.makeup && <Badge variant="info">{v.makeup}</Badge>}
+                        {v.method === 'reading-code' ? (
                           <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>
                         ) : (
-                          r.pipeline === 'one_shot' && <Badge variant="outline">Bài tự luận</Badge>
+                          v.method === 'essay' && <Badge variant="outline">Bài tự luận</Badge>
                         )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <StatusPill status={r.status} ungradableReason={r.ungradableReason} pipeline={r.pipeline} />
+                      <StatusPill status={v.status} ungradableReason={v.ungradableReason} pipeline={v.pipeline} />
                     </TableCell>
                     <TableCell data-cell="score" className="text-right">
-                      {state === 'audit' && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
-                      <span className="font-semibold tabular-nums">{score.text}</span>{' '}
-                      <span className="text-caption text-muted-foreground">{score.tag}</span>
+                      {v.auditHidden && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
+                      <span className="font-semibold tabular-nums">{v.score.text}</span>{' '}
+                      <span className="text-caption text-muted-foreground">{v.score.tag}</span>
                     </TableCell>
-                    <TableCell className="text-small tabular-nums">{errorsText(r.triage)}</TableCell>
-                    <TableCell className="max-w-[360px] text-small text-muted-foreground">{reasonCell(r)}</TableCell>
+                    <TableCell className="text-small tabular-nums">{v.errors}</TableCell>
+                    <TableCell className="max-w-[360px] text-small text-muted-foreground">{v.reason}</TableCell>
                   </TableRow>
                 );
               })}
