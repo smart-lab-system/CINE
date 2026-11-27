@@ -58,7 +58,7 @@ Chủ dự án chọn B (27/11/2026). Lý do: việc chính của danh sách là
 
 **Một mô hình hàng dùng chung.** Rút phần tính ra khỏi `Row` của `SessionTable` thành một hàm thuần (ngày giờ, nhãn loại, dòng phụ, ghi chú, hành động, nhãn `aria-label` của nút) để bảng và thẻ cùng đọc; tương tự cho `ResultsTable` (nhãn điểm, đếm lỗi, lý do). Đây là cách chặn thẻ lệch bảng.
 
-**Thẻ phiên (danh sách phiên).** `<ul aria-label="Danh sách phiên chấm">`; tiêu đề nhóm (nếu có) là một `<li>` có nút `aria-expanded` và ô chọn cả nhóm như hiện nay.
+**Thẻ phiên (danh sách phiên).** `<ul aria-label="Danh sách phiên chấm">`; hàng đầu tiên là ô "Chọn tất cả phiên đang hiện" (nhãn 40px, cùng phép chọn như ô ở đầu bảng, kể cả nhóm đã thu gọn; thêm sau review vì bảng ở 390px vốn có ô này); tiêu đề nhóm (nếu có) là một `<li>` có nút `aria-expanded` và ô chọn cả nhóm (bọc trong `<label>` 40px) như hiện nay.
 - Dòng 1: ô chọn (vùng bấm ≥ 40px) và tên phiên (liên kết, tối đa 2 dòng, `title` là tên đầy đủ), kèm dòng phụ "lớp · phòng" ngay dưới tên (như bảng).
 - Dòng 2 (chữ phụ): ngày giờ · loại · "N/M bài nộp".
 - Dòng 3: trạng thái (cùng `StatusPill`) và ghi chú cảnh báo nếu có.
