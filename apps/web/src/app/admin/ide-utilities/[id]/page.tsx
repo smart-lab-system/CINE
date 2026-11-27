@@ -15,6 +15,7 @@ import {
   type CatalogExtensionDetail,
   type CatalogStatus,
 } from '@/lib/api/ide-utilities';
+import { approveWarning } from '@/lib/ide-version-approval';
 
 function formatDate(value: string | null) {
   if (!value) return '-';
@@ -291,7 +292,11 @@ export default function IdeUtilityDetailPage() {
                             type="button"
                             disabled={busy}
                             className="text-primary disabled:opacity-50"
-                            onClick={() => void run(() => approveVersion(v.id))}
+                            onClick={() => {
+                            const warning = approveWarning(v);
+                            if (warning && !window.confirm(warning)) return;
+                            void run(() => approveVersion(v.id));
+                          }}
                           >
                             Approve
                           </button>

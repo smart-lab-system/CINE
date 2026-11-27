@@ -99,6 +99,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 - Ảnh 13 (C/C++ 1.22.11, 1.21.6): trạng thái "Đã duyệt", cột File "-", và trang browse báo "Phiên bản chưa có file .vsix". Cùng giây duyệt và thêm.
 - Có thể do seed không tạo tệp. Nhưng nếu quy trình cho phép duyệt phiên bản không có tệp thì đó là lỗi dữ liệu.
 
+- **Xử lý (PR sửa L-18): xác nhận là khoảng trống quy trình, không phải lỗi dữ liệu.** `approveVersion` không đòi file `.vsix`, và đó là có chủ ý: duyệt là quyết định "cho phép" theo mã tiện ích và phiên bản (`violation-filter.ts` đóng vi phạm theo cặp đó), phiên bản được đồng bộ trước và file đến sau, còn "mọi phiên bản (*)" không bao giờ có file (`ensureArtifacts` bỏ qua `*`). Bắt buộc có file ở backend sẽ chặn các luồng đó. Chỗ hở thật là người duyệt có thể duyệt một phiên bản mà chưa xem được mã. Đã sửa ở web: duyệt phiên bản cụ thể chưa có file thì hỏi xác nhận (`lib/ide-version-approval.ts`), không đổi backend. Nếu chủ dự án muốn CHẶN hẳn, đó là đổi quy tắc ở `approveVersion` kèm cách xử lý luồng đồng bộ trước.
+
 ### L-19 · Lỗi và "Đang tải" hiện cùng lúc · TB
 - `admin/ide-utilities/.../browse` (ảnh 11, 12): thông báo lỗi và chữ "Đang tải..." cùng hiện.
 
