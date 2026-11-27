@@ -20,7 +20,8 @@ export function ResultCards({ views, showMethodChip }: { views: ResultRowView[];
         return (
           <li key={v.id} className="flex flex-col gap-1.5 px-3 py-3">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <Link href={v.href} className="font-medium text-accent-strong hover:underline">
+              {/* Vùng bấm 40px: đệm 10px mỗi phía, kéo lề âm bù lại để thẻ không cao thêm. */}
+              <Link href={v.href} className="-my-2.5 py-2.5 font-medium text-accent-strong hover:underline">
                 {v.mssv}
               </Link>
               <span className="min-w-0 break-words">{v.name}</span>

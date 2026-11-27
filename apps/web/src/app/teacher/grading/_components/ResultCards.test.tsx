@@ -46,6 +46,11 @@ describe('ResultCards', () => {
     expect(card).not.toHaveTextContent('0,0');
   });
 
+  it('the MSSV link has a 40px tap area without making the card taller', () => {
+    render(<ResultCards views={views([result({ studentMssv: '20120010' })])} showMethodChip />);
+    expect(screen.getByRole('link', { name: '20120010' })).toHaveClass('py-2.5', '-my-2.5');
+  });
+
   it('a makeup student is flagged', () => {
     render(<ResultCards views={views([result({ homeClassId: 'other', homeClassName: 'N09' })])} showMethodChip />);
     expect(screen.getByText('Thi bù - N09')).toBeInTheDocument();
