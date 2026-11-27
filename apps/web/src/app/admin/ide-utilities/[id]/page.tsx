@@ -293,10 +293,10 @@ export default function IdeUtilityDetailPage() {
                             disabled={busy}
                             className="text-primary disabled:opacity-50"
                             onClick={() => {
-                            const warning = approveWarning(v);
-                            if (warning && !window.confirm(warning)) return;
-                            void run(() => approveVersion(v.id));
-                          }}
+                              const warning = approveWarning(v);
+                              if (warning && !window.confirm(warning)) return;
+                              void run(() => approveVersion(v.id));
+                            }}
                           >
                             Approve
                           </button>
