@@ -190,6 +190,16 @@ export default function IdeExtensionVersionBrowsePage() {
     return () => window.clearInterval(t);
   }, [browse, loadBrowse]);
 
+  // Tải lỗi thì `browse` không bao giờ được gán: không được để chữ "Đang tải…" đứng cạnh thông báo lỗi.
+  const retryLoad = useCallback(async () => {
+    setError(null);
+    try {
+      await loadBrowse();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không tải được.');
+    }
+  }, [loadBrowse]);
+
   const root = browse?.tree?.root ?? [];
 
   const folderChildren = useMemo(() => {
@@ -301,7 +311,7 @@ export default function IdeExtensionVersionBrowsePage() {
       />
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link href={catalogHref} className="text-primary underline-offset-2 hover:underline">
-          ← Quay lại catalog
+          ← Quay lại danh mục
         </Link>
         {browse?.status === 'ready' ? (
           viewMode === 'files' ? (
@@ -328,7 +338,13 @@ export default function IdeExtensionVersionBrowsePage() {
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {!browse ? (
-        <p className="text-sm text-muted-foreground">Đang tải…</p>
+        error ? (
+          <button type="button" className="w-fit text-sm text-primary" onClick={() => void retryLoad()}>
+            Thử tải lại
+          </button>
+        ) : (
+          <p className="text-sm text-muted-foreground">Đang tải…</p>
+        )
       ) : browse.status === 'pending' || browse.status === 'extracting' ? (
         <p className="text-sm text-muted-foreground">Đang giải nén nội dung .vsix…</p>
       ) : browse.status === 'failed' ? (

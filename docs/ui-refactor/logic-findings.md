@@ -108,6 +108,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 ### L-19 · Lỗi và "Đang tải" hiện cùng lúc · TB
 - `admin/ide-utilities/.../browse` (ảnh 11, 12): thông báo lỗi và chữ "Đang tải..." cùng hiện.
 
+- **Xử lý (PR sửa L-19):** khi tải lỗi, trang không còn hiện "Đang tải…" cạnh thông báo lỗi; thay bằng nút "Thử tải lại". Lỗi `400 Phiên bản chưa có file .vsix` là phản hồi đúng của backend (xem L-18), không phải lỗi mới. Đổi luôn "Quay lại catalog" thành "Quay lại danh mục" theo glossary.
+
 ### L-20 · Trạng thái "Sẵn sàng" của đề khi câu hỏi chưa gắn rubric · TB · Nghi ngờ
 - Ảnh 51, 52: đề "Sẵn sàng" nhưng cả hai câu "Chưa gắn" rubric. Cần kiểm điều kiện đánh dấu sẵn sàng.
 
