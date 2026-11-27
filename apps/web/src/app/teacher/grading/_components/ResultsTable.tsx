@@ -5,8 +5,10 @@ import { EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/status-pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { NARROW_LIST_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
 import { STATE_LABEL, STATE_ORDER, countStates, sortByState, stateOf, type SessionState } from '@/lib/session-triage';
 import type { GradingResult } from '@/lib/api/grading';
+import { ResultCards } from './ResultCards';
 import { resultRowView } from './result-row-view';
 
 export type ResultsFilter = SessionState | 'all';
@@ -17,6 +19,9 @@ export type ResultsFilter = SessionState | 'all';
  *
  * Lý do và số lỗi đọc từ `result.triage` mà danh sách đã mang sẵn (G1 §2) - không còn một request hồ sơ cho mỗi
  * bài. Bài chưa có `triage` thì KHÔNG đoán: chỉ đường mở hồ sơ.
+ *
+ * Dưới 820px mỗi bài là một thẻ (`ResultCards`), từ 820px là bảng; cả hai đọc cùng `resultRowView`. Khi từ hai bài
+ * trở lên đang hiện đều chấm bằng cách đọc mã, câu đó nói MỘT lần ở đầu danh sách thay vì lặp ở từng hàng.
  */
 export function ResultsTable({
   sessionId,
@@ -31,8 +36,12 @@ export function ResultsTable({
   filter: ResultsFilter;
   onFilterChange: (filter: ResultsFilter) => void;
 }) {
+  const narrow = useMediaQuery(NARROW_LIST_QUERY);
   const counts = countStates(results);
   const shown = sortByState(filter === 'all' ? results : results.filter((r) => stateOf(r) === filter));
+  const views = shown.map((r) => resultRowView(r, { sessionId, sessionClassId }));
+  const sharedReadingCode = views.length >= 2 && views.every((v) => v.method === 'reading-code');
+  const showMethodChip = !sharedReadingCode;
 
   return (
     <section aria-label="Danh sách bài" className="flex flex-col gap-3">
@@ -47,10 +56,16 @@ export function ResultsTable({
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {sharedReadingCode && (
+        <p className="text-caption text-muted-foreground">Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy.</p>
+      )}
+
+      {views.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-6 text-small text-muted-foreground">
           Không có bài nào ở nhóm này. Chọn &quot;Tất cả&quot; để xem toàn bộ phiên.
         </p>
+      ) : narrow ? (
+        <ResultCards views={views} showMethodChip={showMethodChip} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-surface">
           <Table>
@@ -64,40 +79,34 @@ export function ResultsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shown.map((r) => {
-                const v = resultRowView(r, { sessionId, sessionClassId });
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={v.href}
-                          className="font-medium text-accent-strong hover:underline"
-                        >
-                          {v.mssv}
-                        </Link>
-                        <span>{v.name}</span>
-                        {v.makeup && <Badge variant="info">{v.makeup}</Badge>}
-                        {v.method === 'reading-code' ? (
-                          <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>
-                        ) : (
-                          v.method === 'essay' && <Badge variant="outline">Bài tự luận</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusPill status={v.status} ungradableReason={v.ungradableReason} pipeline={v.pipeline} />
-                    </TableCell>
-                    <TableCell data-cell="score" className="text-right">
-                      {v.auditHidden && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
-                      <span className="font-semibold tabular-nums">{v.score.text}</span>{' '}
-                      <span className="text-caption text-muted-foreground">{v.score.tag}</span>
-                    </TableCell>
-                    <TableCell className="text-small tabular-nums">{v.errors}</TableCell>
-                    <TableCell className="max-w-[360px] text-small text-muted-foreground">{v.reason}</TableCell>
-                  </TableRow>
-                );
-              })}
+              {views.map((v) => (
+                <TableRow key={v.id}>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link href={v.href} className="font-medium text-accent-strong hover:underline">
+                        {v.mssv}
+                      </Link>
+                      <span>{v.name}</span>
+                      {v.makeup && <Badge variant="info">{v.makeup}</Badge>}
+                      {v.method === 'reading-code' ? (
+                        showMethodChip && <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>
+                      ) : (
+                        v.method === 'essay' && <Badge variant="outline">Bài tự luận</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusPill status={v.status} ungradableReason={v.ungradableReason} pipeline={v.pipeline} />
+                  </TableCell>
+                  <TableCell data-cell="score" className="text-right">
+                    {v.auditHidden && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
+                    <span className="font-semibold tabular-nums">{v.score.text}</span>{' '}
+                    <span className="text-caption text-muted-foreground">{v.score.tag}</span>
+                  </TableCell>
+                  <TableCell className="text-small tabular-nums">{v.errors}</TableCell>
+                  <TableCell className="max-w-[360px] text-small text-muted-foreground">{v.reason}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
