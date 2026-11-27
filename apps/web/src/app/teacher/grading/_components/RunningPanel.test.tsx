@@ -40,7 +40,6 @@ const props = (over: Partial<Props> = {}): Props => ({
   results: finished,
   online: true,
   onRegradeStuck: vi.fn(),
-  sessionId: 's1',
   regrade: { isPending: false, isError: false, error: null, data: undefined },
   ...over,
 });
@@ -181,11 +180,10 @@ describe('RunningPanel - what the API cannot tell yet is labelled, not invented 
     expect(within(block).queryByText('cần backend')).not.toBeInTheDocument();
   });
 
-  it('regrading system-stopped results is a real button carrying the SYSTEM count', () => {
+  it('the stopped-results note points to the one regrade button at the top - no second button here', () => {
     render(<RunningPanel {...props()} />);
-    const button = screen.getByRole('button', { name: 'Chấm lại 2 bài lỗi hệ thống' });
-    expect(button).toBeEnabled();
-    expect(button).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 2 }));
+    expect(screen.getByText(/chấm lại được bằng nút ở đầu trang/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
   });
 
   it('a stopped result of class "submission" is not regradable: still said as stopped, but no button', () => {

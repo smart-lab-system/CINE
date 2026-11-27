@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { countSystemUngradable } from '@/lib/regrade-triage';
-import { RegradeButton } from './RegradeButton';
 import { addSample, describeRate, describeStall, estimate, stalledSeconds, type RateSample } from '@/lib/progress-rate';
 import { stateOf } from '@/lib/session-triage';
 import type { GradingProgress, GradingResult } from '@/lib/api/grading';
@@ -18,7 +17,8 @@ import type { GradingProgress, GradingResult } from '@/lib/api/grading';
  *
  * Luật chung cho các băng: mỗi băng nói CÁI GÌ HỎNG (máy bạn · máy chủ · hàng đợi) và BÀI LÀM CÓ BỊ ẢNH HƯỞNG
  * KHÔNG. Không băng nào chỉ ghi "đã xảy ra lỗi". Cái API chưa nói được (bài nào đang chạy công cụ gì) mang nhãn
- * không được vẽ thành số liệu và không gửi gì. Chấm lại bài dừng vì lỗi hệ thống thì ĐÃ có route (G3): nút thật, có hộp xác nhận.
+ * không được vẽ thành số liệu và không gửi gì. Chấm lại bài dừng vì lỗi hệ thống có route (G3), nhưng nút chỉ đặt
+ * một chỗ - đầu phiên - để giảng viên không gặp hai nút cùng làm một việc.
  */
 export function RunningPanel({
   progress,
@@ -29,7 +29,6 @@ export function RunningPanel({
   online,
   onRegradeStuck,
   regrade,
-  sessionId,
 }: {
   progress: GradingProgress | undefined;
   /** Lỗi của lần hỏi tiến độ gần nhất; `null` khi ổn. */
@@ -40,8 +39,6 @@ export function RunningPanel({
   results: GradingResult[];
   online: boolean;
   onRegradeStuck: () => void;
-  /** Phiên đang chấm - để nút chấm lại biết chấm lại ở đâu. */
-  sessionId: string;
   regrade: {
     isPending: boolean;
     isError: boolean;
@@ -183,17 +180,11 @@ export function RunningPanel({
       </section>
 
       {online && stopped > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-4">
-          <p className="flex-1 text-small text-muted-foreground">
+        <div className="rounded-lg border border-border bg-surface p-4">
+          <p className="text-small text-muted-foreground">
             {stopped} bài đã dừng. Bài dừng vì lỗi hệ thống chưa có điểm nào
-            {systemStopped > 0 ? ` - ${systemStopped} bài trong số đó chấm lại được.` : '.'}
+            {systemStopped > 0 ? ` - ${systemStopped} bài trong số đó chấm lại được bằng nút ở đầu trang.` : '.'}
           </p>
-          {systemStopped > 0 && (
-            <RegradeButton
-              scope={{ kind: 'session', sessionId, reason: null, count: systemStopped }}
-              label={`Chấm lại ${systemStopped} bài lỗi hệ thống`}
-            />
-          )}
         </div>
       )}
     </div>

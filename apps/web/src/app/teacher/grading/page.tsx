@@ -160,7 +160,7 @@ function SessionScreen({
         </Alert>
       )}
 
-      <AiServiceBand sessionId={sessionId} results={list} />
+      <AiServiceBand results={list} />
 
       <JplagFindingsPanel sessionId={sessionId} />
 
@@ -196,7 +196,6 @@ function SessionScreen({
             results={list}
             online={online}
             onRegradeStuck={() => regrade.mutate()}
-            sessionId={sessionId}
             regrade={{
               isPending: regrade.isPending,
               isError: regrade.isError,

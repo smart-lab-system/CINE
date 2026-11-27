@@ -1,16 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import type { GradingResult } from '@/lib/api/grading';
 import { AiServiceBand } from './AiServiceBand';
-
-vi.mock('./RegradeButton', () => ({
-  RegradeButton: ({ scope, label }: { scope: unknown; label: string }) => (
-    <button type="button" data-scope={JSON.stringify(scope)}>
-      {label}
-    </button>
-  ),
-}));
 
 const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   id: 'r', submissionId: 's', studentMssv: '1', studentName: 'An', homeClassId: 'c', homeClassName: 'N01',
@@ -20,17 +12,15 @@ const result = (over: Partial<GradingResult> = {}): GradingResult => ({
   reviewedByName: null, editedCriteria: null, pipeline: 'one_shot', currentScore: null,
   currentScoreSource: 'computation', ungradableClass: 'system', ...over,
 });
-const band = (results: GradingResult[]) => render(<AiServiceBand sessionId="s1" results={results} />);
+const band = (results: GradingResult[]) => render(<AiServiceBand results={results} />);
 
 describe('AiServiceBand (G3 D12)', () => {
-  it('two system-class results with the same reason → says so, quotes the reason, offers to regrade exactly those', () => {
+  it('two system-class results with the same reason → says so, quotes the reason, and carries no button of its own', () => {
     band([result({ id: 'a' }), result({ id: 'b' })]);
     expect(screen.getByText(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/)).toBeInTheDocument();
     expect(screen.getByText(/“Dịch vụ AI không phản hồi\.”/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Chấm lại 2 bài này' })).toHaveAttribute(
-      'data-scope',
-      JSON.stringify({ kind: 'session', sessionId: 's1', reason: 'Dịch vụ AI không phản hồi.', count: 2 }),
-    );
+    expect(screen.getByText(/bấm nút chấm lại bài lỗi hệ thống ở đầu trang/)).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
   it('says plainly what it measures - the same reason, not a time window (the list carries no stop time)', () => {
@@ -58,7 +48,7 @@ describe('AiServiceBand (G3 D12)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('offers the LARGEST group when there are several', () => {
+  it('names the LARGEST group when there are several', () => {
     band([
       result({ id: 'a', ungradableReason: 'Hết giờ' }),
       result({ id: 'b', ungradableReason: 'Hết giờ' }),
@@ -66,6 +56,6 @@ describe('AiServiceBand (G3 D12)', () => {
       result({ id: 'd', ungradableReason: 'AI lỗi' }),
       result({ id: 'e', ungradableReason: 'AI lỗi' }),
     ]);
-    expect(screen.getByRole('button', { name: 'Chấm lại 3 bài này' })).toBeInTheDocument();
+    expect(screen.getByText(/Dịch vụ AI lỗi - 3 bài không chấm được cùng một lý do/)).toBeInTheDocument();
   });
 });
