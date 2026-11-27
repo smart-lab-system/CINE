@@ -143,10 +143,15 @@ export function useCourseHubRubricMutations(courseId: string) {
   };
 }
 
-export function useNominalClasses(params: ListParams = {}) {
+/**
+ * `enabled` mặc định bật. Endpoint này chỉ dành cho admin (`@Roles('admin')`): màn dùng chung cho cả giảng viên phải
+ * tắt nó, nếu không giảng viên gọi vào và nhận 403.
+ */
+export function useNominalClasses(params: ListParams = {}, options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: [K.classes, params],
     queryFn: () => api.listNominalClasses(params),
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -97,11 +97,16 @@ export function ManualAddStudentForm({
     enabled: directoryLookup && debouncedDigits.length >= 7,
   });
 
-  const classes = useNominalClasses({
-    page: 1,
-    pageSize: 100,
-    status: 'active',
-  });
+  // Danh sách lớp danh nghĩa chỉ để chọn lớp khi TẠO sinh viên mới trong danh mục (catalogAssist, admin). Endpoint
+  // chỉ cho admin, nên giảng viên (không có catalogAssist) không được gọi: trước đây họ nhận 403 mỗi lần mở màn.
+  const classes = useNominalClasses(
+    {
+      page: 1,
+      pageSize: 100,
+      status: 'active',
+    },
+    { enabled: catalogAssist },
+  );
 
   const classOptions = useMemo(
     () =>

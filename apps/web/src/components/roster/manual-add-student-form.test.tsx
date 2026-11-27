@@ -10,8 +10,12 @@ vi.mock('@/hooks/useDebouncedValue', () => ({
   useDebouncedValue: (value: unknown) => value,
 }));
 
+const nominalClassesHook = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/useMasterData', () => ({
-  useNominalClasses: () => ({ data: { items: [] } }),
+  useNominalClasses: (...args: unknown[]) => {
+    nominalClassesHook(...args);
+    return { data: { items: [] } };
+  },
 }));
 
 vi.mock('@/lib/api/master-data', () => ({
@@ -23,13 +27,13 @@ vi.mock('@/lib/api/master-data', () => ({
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-function renderForm(onAdd = vi.fn()) {
+function renderForm(onAdd = vi.fn(), catalogAssist = false) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <ManualAddStudentForm directoryLookup isPending={false} onAdd={onAdd} />
+      <ManualAddStudentForm directoryLookup catalogAssist={catalogAssist} isPending={false} onAdd={onAdd} />
     </QueryClientProvider>,
   );
   return onAdd;
@@ -38,6 +42,18 @@ function renderForm(onAdd = vi.fn()) {
 describe('ManualAddStudentForm directoryLookup', () => {
   beforeEach(() => {
     lookupMock.mockReset();
+    nominalClassesHook.mockReset();
+  });
+
+  // L-01: endpoint lớp danh nghĩa chỉ cho admin. Giảng viên (không catalogAssist) không được gọi, kẻo nhận 403.
+  it('giảng viên (không catalogAssist): không gọi danh sách lớp danh nghĩa', () => {
+    renderForm();
+    expect(nominalClassesHook).toHaveBeenCalledWith(expect.anything(), { enabled: false });
+  });
+
+  it('admin (catalogAssist): vẫn tải danh sách lớp danh nghĩa để chọn khi tạo sinh viên mới', () => {
+    renderForm(vi.fn(), true);
+    expect(nominalClassesHook).toHaveBeenCalledWith(expect.anything(), { enabled: true });
   });
 
   it('chưa đủ 7 số thì không gợi ý và không thêm được', () => {
