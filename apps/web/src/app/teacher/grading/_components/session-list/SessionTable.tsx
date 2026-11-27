@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, CheckCircle2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ListView, RowGroup, SessionRow, SortKey } from '@/lib/session-list';
@@ -9,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { SessionProgress } from './SessionProgress';
 import { groupSummary, sessionRowView } from './session-row-view';
 import { StatusPill } from './StatusPill';
+import { TriCheckbox } from './TriCheckbox';
 
 export interface SessionTableProps {
   groups: RowGroup[];
@@ -21,24 +21,6 @@ export interface SessionTableProps {
   onStart: (row: SessionRow) => void;
   density: 'cozy' | 'compact';
   now: number;
-}
-
-/** Ô chọn ba trạng thái: `indeterminate` chỉ đặt được qua thuộc tính DOM, không qua prop. */
-function TriCheckbox({ checked, indeterminate, onChange, label }: { checked: boolean; indeterminate: boolean; onChange: (on: boolean) => void; label: string }) {
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (ref.current) ref.current.indeterminate = indeterminate;
-  }, [indeterminate]);
-  return (
-    <input
-      ref={ref}
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      aria-label={label}
-      className="h-4 w-4 cursor-pointer accent-primary"
-    />
-  );
 }
 
 function SortHead({ label, sortKey, view, onSort, className }: { label: string; sortKey: SortKey; view: ListView; onSort: (k: SortKey) => void; className?: string }) {
