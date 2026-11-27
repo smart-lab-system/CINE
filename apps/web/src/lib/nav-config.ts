@@ -80,7 +80,7 @@ export const ADMIN_NAV: NavEntry[] = [
     ],
   },
   { label: 'Tiện ích IDE', href: '/admin/ide-utilities', icon: Puzzle },
-  { label: 'Audit log', href: '/admin/audit-log', icon: ScrollText },
+  { label: 'Nhật ký thao tác', href: '/admin/audit-log', icon: ScrollText },
 ];
 
 // DEPARTMENT_NAV đã bỏ ngày 2026-09-21. Vai trò Trưởng khoa biến mất ở đợt
