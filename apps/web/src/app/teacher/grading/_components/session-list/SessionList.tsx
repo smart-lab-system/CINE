@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/page-header';
 import { useGradingSessionSummaries } from '@/hooks/useGrading';
+import { NARROW_LIST_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import {
   DEFAULT_SORT_DIR,
@@ -16,11 +17,13 @@ import {
   matchesFilters,
   sortRows,
   statusCounts,
+  type SessionRow,
   type SortKey,
 } from '@/lib/session-list';
 import { FilterBar } from './FilterBar';
 import { BulkBar } from './BulkBar';
 import { BulkDialog, type BulkRequest } from './BulkDialog';
+import { SessionCards } from './SessionCards';
 import { SessionTable } from './SessionTable';
 import { StatusTabs } from './StatusTabs';
 import { useSessionListState } from './useSessionListState';
@@ -66,6 +69,8 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
   const summaries = useGradingSessionSummaries();
   const { filters, view, setFilters, setView } = useSessionListState();
   const [density, setDensity] = useDensity();
+  // Dưới 820px mỗi phiên là một thẻ, từ 820px là bảng - mỗi lần chỉ một cách có trong DOM (vùng chọn và thu gọn nhóm sống ở đây nên giữ nguyên khi đổi).
+  const narrow = useMediaQuery(NARROW_LIST_QUERY);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
   const [bulk, setBulk] = useState<BulkRequest | null>(null);
@@ -120,6 +125,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
       else next.add(key);
       return next;
     });
+  const startOne = (row: SessionRow) => setBulk({ kind: 'start', rows: [row], skipped: 0 });
   const sortBy = (key: SortKey) =>
     setView({ ...view, sortKey: key, sortDir: view.sortKey === key ? (view.sortDir === 'asc' ? 'desc' : 'asc') : DEFAULT_SORT_DIR[key] });
 
@@ -220,6 +226,17 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
                 Xoá bộ lọc
               </Button>
             </div>
+          ) : narrow ? (
+            <SessionCards
+              groups={groups}
+              selected={selected}
+              onToggleRows={toggleRows}
+              collapsed={collapsed}
+              onToggleGroup={toggleGroup}
+              onStart={startOne}
+              density={density}
+              now={now}
+            />
           ) : (
             <SessionTable
               groups={groups}
@@ -229,7 +246,7 @@ export function SessionList({ sessions, loading, error }: { sessions: SessionOve
               onToggleRows={toggleRows}
               collapsed={collapsed}
               onToggleGroup={toggleGroup}
-              onStart={(row) => setBulk({ kind: 'start', rows: [row], skipped: 0 })}
+              onStart={startOne}
               density={density}
               now={now}
             />
