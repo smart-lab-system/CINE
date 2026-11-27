@@ -123,11 +123,11 @@ interface SessionTableProps {
 export function SessionTable({ groups, now, onArchive, onCloseAttention }: SessionTableProps) {
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface-1">
+      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[36%]">Phiên thi</TableHead>
+              <TableHead className="min-w-[15rem]">Phiên thi</TableHead>
               <TableHead>Loại</TableHead>
               <TableHead>Thời gian</TableHead>
               <TableHead>Phòng</TableHead>

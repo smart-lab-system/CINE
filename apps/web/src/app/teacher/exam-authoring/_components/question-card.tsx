@@ -1,4 +1,5 @@
 'use client';
+import { Table } from '@/components/ui/table';
 
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronUp, RefreshCw, Search } from 'lucide-react';
@@ -149,7 +150,7 @@ export function QuestionCard({
               Gói test ({question.testBundle.length} trường hợp)
             </p>
             <div className="overflow-hidden rounded-lg border border-border">
-              <table className="w-full border-collapse text-caption">
+              <Table className="border-collapse text-caption">
                 <thead className="bg-surface-2">
                   <tr>
                     <th className="px-2.5 py-1.5 text-left font-semibold text-muted-foreground">Nhóm</th>
@@ -166,7 +167,7 @@ export function QuestionCard({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </Table>
             </div>
           </div>
         )}

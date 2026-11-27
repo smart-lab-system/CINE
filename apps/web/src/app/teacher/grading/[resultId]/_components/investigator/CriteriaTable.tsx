@@ -1,3 +1,4 @@
+import { Table } from '@/components/ui/table';
 import { formatVnPoints } from '@/lib/format';
 
 export function CriteriaTable({
@@ -10,7 +11,7 @@ export function CriteriaTable({
   return (
     <section className="flex flex-col gap-2">
       <h2 className="section-label">Theo tiêu chí</h2>
-      <table className="w-full text-small">
+      <Table className="text-small">
         <thead>
           <tr className="text-caption text-muted-foreground">
             <th className="text-left font-semibold">Tiêu chí</th>
@@ -40,7 +41,7 @@ export function CriteriaTable({
             <td className="text-right tabular-nums">{formatVnPoints((totalMax - totalDeducted) / 100)}</td>
           </tr>
         </tbody>
-      </table>
+      </Table>
     </section>
   );
 }

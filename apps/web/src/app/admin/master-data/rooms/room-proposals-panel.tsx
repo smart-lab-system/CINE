@@ -190,7 +190,7 @@ export function RoomProposalsPanel() {
       ) : items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Chưa có đề xuất nào.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scroll-edges">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
@@ -258,7 +258,7 @@ export function RoomProposalsPanel() {
                 </p>
               </div>
 
-              <div className="overflow-x-auto rounded-md border">
+              <div className="overflow-x-auto scroll-edges rounded-md border">
                 <table className="w-full min-w-[980px] text-sm">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">

@@ -28,14 +28,18 @@ export interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
 }
 
 /**
- * The wrapper scrolls horizontally on its own so a wide table (the exam
- * session list has eight columns) never forces the whole page sideways on
- * a laptop screen. It scrolls vertically too when a caller caps it - see
+ * The wrapper scrolls horizontally on its own so a wide table never forces
+ * the whole page sideways. `scroll-edges` draws a soft shadow on the side
+ * that still hides columns - the cue that there is more to see (see
+ * globals.css). It scrolls vertically too when a caller caps it - see
  * `container` above.
  */
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, container, ...props }, ref) => (
-    <div {...container} className={cn('w-full overflow-x-auto', container?.className)}>
+    <div
+      {...container}
+      className={cn('w-full overflow-x-auto scroll-edges', container?.className)}
+    >
       <table
         ref={ref}
         className={cn('w-full caption-bottom border-collapse text-body', className)}

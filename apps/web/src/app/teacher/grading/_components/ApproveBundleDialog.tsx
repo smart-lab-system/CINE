@@ -72,7 +72,7 @@ export function ApproveBundleDialog({
         )}
 
         {active.length > 0 && (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scroll-edges">
             <table className="w-full min-w-[32rem] text-left text-small">
               <caption className="sr-only">Các ca sẽ được duyệt</caption>
               <thead>

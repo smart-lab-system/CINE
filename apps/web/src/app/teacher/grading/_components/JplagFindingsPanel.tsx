@@ -120,7 +120,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
       {vsModel.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Vs đáp án mẫu</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scroll-edges">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">
@@ -192,7 +192,7 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
       {vsStudent.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Vs bài nộp</h3>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scroll-edges">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground">

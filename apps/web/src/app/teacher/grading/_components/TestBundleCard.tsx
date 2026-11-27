@@ -240,7 +240,7 @@ export function TestBundleCard({ sessionId, pinnedBundleId }: { sessionId: strin
             {draft.rows.length === 0 ? (
               <p className="text-small text-muted-foreground">Chưa có ca nào. Bấm Thêm ca để gõ ca đầu tiên.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scroll-edges">
                 <table className="w-full min-w-[40rem] text-left text-small">
                   <caption className="sr-only">Các ca của bản nháp</caption>
                   <thead>
