@@ -4,20 +4,10 @@ import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, CheckCircle2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
-import {
-  formatSessionDate,
-  rowActionOf,
-  rowNote,
-  sessionHref,
-  submittedCount,
-  type ListView,
-  type RowGroup,
-  type SessionRow,
-  type SortKey,
-} from '@/lib/session-list';
+import type { ListView, RowGroup, SessionRow, SortKey } from '@/lib/session-list';
 import { cn } from '@/lib/utils';
 import { SessionProgress } from './SessionProgress';
+import { groupSummary, sessionRowView } from './session-row-view';
 import { StatusPill } from './StatusPill';
 
 export interface SessionTableProps {
@@ -75,12 +65,8 @@ const PlainHead = ({ children, className }: { children: React.ReactNode; classNa
 );
 
 function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selected: boolean; onToggle: (on: boolean) => void; onStart: (r: SessionRow) => void; now: number }) {
-  const s = row.session;
-  const when = formatSessionDate(s.startTime);
-  const note = rowNote(row, now);
-  const action = rowActionOf(row);
-  const typeLabel = EXAM_TYPE_LABELS[s.examType] ?? s.examType;
-  const actionLabel = `${action.label}: ${s.name}${s.className ? `, ${s.className}` : ''}`;
+  const v = sessionRowView(row, now);
+  const { action, note } = v;
 
   return (
     <tr data-selected={selected} className="border-b border-border last:border-0 hover:bg-surface-2 data-[selected=true]:bg-primary-subtle">
@@ -89,29 +75,29 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
           type="checkbox"
           checked={selected}
           onChange={(e) => onToggle(e.target.checked)}
-          aria-label={`Chọn phiên ${s.name}${s.className ? `, ${s.className}` : ''}`}
+          aria-label={v.selectLabel}
           className="h-4 w-4 cursor-pointer accent-primary"
         />
       </td>
       <td className="px-3 py-2.5 align-middle group-data-[density=compact]:py-1.5">
-        <Link href={sessionHref(s.id)} title={s.name} className="line-clamp-2 text-body font-semibold text-foreground hover:underline group-data-[density=compact]:line-clamp-1">
-          {s.name}
+        <Link href={v.href} title={v.name} className="line-clamp-2 text-body font-semibold text-foreground hover:underline group-data-[density=compact]:line-clamp-1">
+          {v.name}
         </Link>
         <span className="block truncate text-caption text-muted-foreground">
-          <span className="min-[1240px]:hidden">{typeLabel} · </span>
-          {[s.className, s.roomName].filter(Boolean).join(' · ')}
+          <span className="min-[1240px]:hidden">{v.typeLabel} · </span>
+          {v.meta}
         </span>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 align-middle tabular-nums group-data-[density=compact]:py-1.5">
-        <span className="block">{when.date}</span>
-        <span className="block text-caption text-muted-foreground">{when.time}</span>
+        <span className="block">{v.date}</span>
+        <span className="block text-caption text-muted-foreground">{v.time}</span>
       </td>
       <td className="hidden px-3 py-2.5 align-middle min-[1240px]:table-cell group-data-[density=compact]:py-1.5">
-        <span className="inline-flex h-6 items-center rounded-md border border-border bg-surface-2 px-2 text-caption font-medium">{typeLabel}</span>
+        <span className="inline-flex h-6 items-center rounded-md border border-border bg-surface-2 px-2 text-caption font-medium">{v.typeLabel}</span>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 align-middle tabular-nums group-data-[density=compact]:py-1.5">
-        <span className="font-semibold">{submittedCount(s)}</span>
-        <span className="text-muted-foreground">{s.rosterKnown && s.expectedCount > 0 ? `/${s.expectedCount}` : ''}</span>
+        <span className="font-semibold">{v.submitted}</span>
+        <span className="text-muted-foreground">{v.expected}</span>
       </td>
       <td className="px-3 py-2.5 align-middle group-data-[density=compact]:py-1.5">
         <StatusPill status={row.status} />
@@ -133,10 +119,10 @@ function Row({ row, selected, onToggle, onStart, now }: { row: SessionRow; selec
       <td className="px-3 py-2.5 text-right align-middle group-data-[density=compact]:py-1.5">
         {action.kind === 'link' ? (
           <Button asChild size="sm" variant={action.tone === 'primary' ? 'default' : action.tone}>
-            <Link href={action.href} aria-label={actionLabel}>{action.label}</Link>
+            <Link href={action.href} aria-label={v.actionLabel}>{action.label}</Link>
           </Button>
         ) : (
-          <Button type="button" size="sm" onClick={() => onStart(row)} aria-label={actionLabel}>
+          <Button type="button" size="sm" onClick={() => onStart(row)} aria-label={v.actionLabel}>
             {action.label}
           </Button>
         )}
@@ -187,8 +173,7 @@ export function SessionTable({ groups, view, onSort, selected, onToggleRows, col
             const open = g.key === null || !collapsed.has(g.key);
             const ids = g.rows.map((r) => r.session.id);
             const inGroup = ids.filter((id) => selected.has(id)).length;
-            const attention = g.rows.filter((r) => r.status === 'attention').length;
-            const ready = g.rows.filter((r) => r.status === 'ready').length;
+            const { attention, ready } = groupSummary(g);
             return [
               g.key !== null && (
                 <tr key={`group-${g.key}`} className="bg-surface-2">
