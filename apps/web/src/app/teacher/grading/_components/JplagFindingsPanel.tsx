@@ -12,6 +12,7 @@ import {
   type JplagDemoRunProfile,
   type JplagRunView,
 } from '@/lib/api/ide-utilities';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function pct(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return '-';
@@ -120,109 +121,35 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
       {vsModel.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Vs đáp án mẫu</h3>
-          <div className="overflow-x-auto scroll-edges">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="py-1.5 pr-2 font-medium">Extension</th>
-                  <th className="py-1.5 pr-2 font-medium">Trạng thái</th>
-                  <th className="py-1.5 pr-2 font-medium">Text</th>
-                  <th className="py-1.5 pr-2 font-medium">Language</th>
-                  <th className="py-1.5 pr-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {vsModel.map((r) => (
-                  <tr key={r.id} className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-2 font-mono text-xs">
-                      {r.extensionIdentifier}
-                      {r.extensionVersion ? `@${r.extensionVersion}` : ''}
-                    </td>
-                    <td className="py-2 pr-2">
-                      {statusLabel(r.status)}
-                      {r.error ? (
-                        <p className="mt-0.5 max-w-xs text-xs text-destructive">{r.error}</p>
-                      ) : null}
-                    </td>
-                    <td className="py-2 pr-2 tabular-nums">{pct(r.similarityText)}</td>
-                    <td className="py-2 pr-2 tabular-nums">{pct(r.similarityLanguage)}</td>
-                    <td className="py-2 pr-2">
-                      <div className="flex flex-wrap gap-1">
-                        {r.status === 'completed' && (
-                          <>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelected({ runId: r.id, profile: 'text' })}
-                            >
-                              Xem text
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setSelected({ runId: r.id, profile: 'language' })}
-                            >
-                              Xem language
-                            </Button>
-                          </>
-                        )}
-                        {(r.status === 'failed' || r.status === 'completed') && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={retry.isPending}
-                            onClick={() => retry.mutate(r.id)}
-                          >
-                            Chạy lại
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {vsStudent.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium">Vs bài nộp</h3>
-          <div className="overflow-x-auto scroll-edges">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b text-muted-foreground">
-                  <th className="py-1.5 pr-2 font-medium">MSSV</th>
-                  <th className="py-1.5 pr-2 font-medium">Extension</th>
-                  <th className="py-1.5 pr-2 font-medium">Trạng thái</th>
-                  <th className="py-1.5 pr-2 font-medium">Text</th>
-                  <th className="py-1.5 pr-2 font-medium">Language</th>
-                  <th className="py-1.5 pr-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {vsStudent.map((r) => (
-                  <tr key={r.id} className="border-b border-border/60 align-top">
-                    <td className="py-2 pr-2 font-mono text-xs">{r.studentMssv ?? '-'}</td>
-                    <td className="py-2 pr-2 font-mono text-xs">
-                      {r.extensionIdentifier}
-                      {r.extensionVersion ? `@${r.extensionVersion}` : ''}
-                    </td>
-                    <td className="py-2 pr-2">
-                      {statusLabel(r.status)}
-                      {r.error ? (
-                        <p className="mt-0.5 max-w-xs text-xs text-destructive">{r.error}</p>
-                      ) : null}
-                    </td>
-                    <td className="py-2 pr-2 tabular-nums">{pct(r.similarityText)}</td>
-                    <td className="py-2 pr-2 tabular-nums">{pct(r.similarityLanguage)}</td>
-                    <td className="py-2 pr-2">
+          <Table className="w-full text-left text-sm">
+            <TableHeader>
+              <TableRow className="text-muted-foreground">
+                <TableHead className="py-1.5 pr-2 font-medium">Extension</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Trạng thái</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Text</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Language</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vsModel.map((r) => (
+                <TableRow key={r.id} className="border-border/60 align-top">
+                  <TableCell className="py-2 pr-2 font-mono text-xs">
+                    {r.extensionIdentifier}
+                    {r.extensionVersion ? `@${r.extensionVersion}` : ''}
+                  </TableCell>
+                  <TableCell className="py-2 pr-2">
+                    {statusLabel(r.status)}
+                    {r.error ? (
+                      <p className="mt-0.5 max-w-xs text-xs text-destructive">{r.error}</p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="py-2 pr-2 tabular-nums">{pct(r.similarityText)}</TableCell>
+                  <TableCell className="py-2 pr-2 tabular-nums">{pct(r.similarityLanguage)}</TableCell>
+                  <TableCell className="py-2 pr-2">
+                    <div className="flex flex-wrap gap-1">
                       {r.status === 'completed' && (
-                        <div className="flex flex-wrap gap-1">
+                        <>
                           <Button
                             type="button"
                             size="sm"
@@ -239,14 +166,84 @@ export function JplagFindingsPanel({ sessionId }: { sessionId: string }) {
                           >
                             Xem language
                           </Button>
-                        </div>
+                        </>
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {(r.status === 'failed' || r.status === 'completed') && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={retry.isPending}
+                          onClick={() => retry.mutate(r.id)}
+                        >
+                          Chạy lại
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {vsStudent.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Vs bài nộp</h3>
+          <Table className="w-full text-left text-sm">
+            <TableHeader>
+              <TableRow className="text-muted-foreground">
+                <TableHead className="py-1.5 pr-2 font-medium">MSSV</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Extension</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Trạng thái</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Text</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium">Language</TableHead>
+                <TableHead className="py-1.5 pr-2 font-medium" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vsStudent.map((r) => (
+                <TableRow key={r.id} className="border-border/60 align-top">
+                  <TableCell className="py-2 pr-2 font-mono text-xs">{r.studentMssv ?? '-'}</TableCell>
+                  <TableCell className="py-2 pr-2 font-mono text-xs">
+                    {r.extensionIdentifier}
+                    {r.extensionVersion ? `@${r.extensionVersion}` : ''}
+                  </TableCell>
+                  <TableCell className="py-2 pr-2">
+                    {statusLabel(r.status)}
+                    {r.error ? (
+                      <p className="mt-0.5 max-w-xs text-xs text-destructive">{r.error}</p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="py-2 pr-2 tabular-nums">{pct(r.similarityText)}</TableCell>
+                  <TableCell className="py-2 pr-2 tabular-nums">{pct(r.similarityLanguage)}</TableCell>
+                  <TableCell className="py-2 pr-2">
+                    {r.status === 'completed' && (
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelected({ runId: r.id, profile: 'text' })}
+                        >
+                          Xem text
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelected({ runId: r.id, profile: 'language' })}
+                        >
+                          Xem language
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 

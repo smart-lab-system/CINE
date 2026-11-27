@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   useGradingProgress,
   useGradingResults,
-  useRegradeStuck,
 } from '@/hooks/useGrading';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useRulesLink } from '@/hooks/useRulesLink';
@@ -27,6 +26,7 @@ import { ResultsTable, type ResultsFilter } from './_components/ResultsTable';
 import { ReviewGroupsPanel } from './_components/ReviewGroupsPanel';
 import { RunningPanel } from './_components/RunningPanel';
 import { SessionHeader } from './_components/SessionHeader';
+import { stuckCountOf } from './_components/stuck';
 import { SessionList } from './_components/session-list/SessionList';
 
 /**
@@ -103,7 +103,6 @@ function SessionScreen({
 }) {
   const results = useGradingResults(sessionId);
   const progress = useGradingProgress(sessionId);
-  const regrade = useRegradeStuck(sessionId);
   const online = useOnlineStatus();
   const rulesLink = useRulesLink(session.rubricId);
   const [filter, setFilter] = useState<ResultsFilter>(() => (isFilter(initialState) ? initialState : 'all'));
@@ -147,6 +146,7 @@ function SessionScreen({
         resultCount={list.length}
         systemFailed={countSystemUngradable(list)}
         remaining={blockers(list).remaining}
+        stuck={progress.data ? stuckCountOf(progress.data, online, progress.isError ? progress.error : null) : 0}
         prepareReviewHref={showPrepareLink ? prepareHref : null}
       />
       <RulerOriginNote sessionId={sessionId} />
@@ -195,13 +195,6 @@ function SessionScreen({
             onRetry={() => void progress.refetch()}
             results={list}
             online={online}
-            onRegradeStuck={() => regrade.mutate()}
-            regrade={{
-              isPending: regrade.isPending,
-              isError: regrade.isError,
-              error: regrade.error,
-              data: regrade.data,
-            }}
           />
           {list.length > 0 && table}
         </>

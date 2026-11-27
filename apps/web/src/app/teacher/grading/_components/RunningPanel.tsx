@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { countSystemUngradable } from '@/lib/regrade-triage';
 import { addSample, describeRate, describeStall, estimate, stalledSeconds, type RateSample } from '@/lib/progress-rate';
 import { stateOf } from '@/lib/session-triage';
+import { isStuck } from './stuck';
 import type { GradingProgress, GradingResult } from '@/lib/api/grading';
 
 /**
@@ -27,8 +28,6 @@ export function RunningPanel({
   onRetry,
   results,
   online,
-  onRegradeStuck,
-  regrade,
 }: {
   progress: GradingProgress | undefined;
   /** Lỗi của lần hỏi tiến độ gần nhất; `null` khi ổn. */
@@ -38,13 +37,6 @@ export function RunningPanel({
   onRetry: () => void;
   results: GradingResult[];
   online: boolean;
-  onRegradeStuck: () => void;
-  regrade: {
-    isPending: boolean;
-    isError: boolean;
-    error: Error | null;
-    data: { stuck: number; requeued: number } | undefined;
-  };
 }) {
   const [samples, setSamples] = useState<RateSample[]>([]);
   useEffect(() => {
@@ -75,8 +67,7 @@ export function RunningPanel({
 
   const stale = !online || progressError !== null;
   const serverDown = online && progressError !== null;
-  const idle = progress.queue.active === 0 && progress.queue.waiting === 0;
-  const stuck = online && !serverDown && progress.pending > 0 && idle;
+  const stuck = isStuck(progress, online, progressError);
   const stuckCount = progress.byStatus.ai_grading ?? progress.pending;
   const stall = stuck ? stalledSeconds(samples, Date.now()) : null;
   const lastRead = lastReadAt === null ? null : new Date(lastReadAt).toLocaleTimeString('vi-VN');
@@ -119,17 +110,7 @@ export function RunningPanel({
               <strong>{stuckCount} bài đang bị kẹt</strong> - không còn tiến trình chấm nào xử lý chúng.
               {stall !== null && <> Không có bài nào hoàn thành trong {describeStall(stall)}.</>}
             </span>
-            <span className="flex flex-wrap items-center gap-3">
-              <Button type="button" size="sm" loading={regrade.isPending} onClick={onRegradeStuck}>
-                Chấm lại {stuckCount} bài bị kẹt
-              </Button>
-              {regrade.data && (
-                <span className="text-caption">
-                  Đã xếp lại {regrade.data.requeued}/{regrade.data.stuck} bài.
-                </span>
-              )}
-            </span>
-            {regrade.isError && regrade.error && <span className="font-medium">{regrade.error.message}</span>}
+            <span className="text-caption">Bấm nút chấm lại ở đầu trang để xếp lại các bài này.</span>
           </AlertDescription>
         </Alert>
       )}

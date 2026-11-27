@@ -32,4 +32,22 @@ describe('gradingInProgressMessage', () => {
     expect(gradingInProgressMessage(undefined, now)).toBe('AI đang chấm bài này.');
     expect(gradingInProgressMessage('not-a-date', now)).toBe('AI đang chấm bài này.');
   });
+
+  it('ai_graded: AI đã chấm xong, không được nói "AI đang chấm"', () => {
+    const msg = gradingInProgressMessage(started, now, 'ai_graded');
+    expect(msg).toBe('AI đã chấm xong, hệ thống đang xếp loại bài này - đã 3 phút 12 giây.');
+    expect(msg).not.toMatch(/AI đang chấm/);
+    expect(gradingInProgressMessage(undefined, now, 'ai_graded')).toBe('AI đã chấm xong, hệ thống đang xếp loại bài này.');
+  });
+
+  it('quá 30 phút ở một bước: nói thẳng là có thể bị kẹt, cho cả hai trạng thái', () => {
+    const late = Date.parse(started) + 384 * 3600_000;
+    expect(gradingInProgressMessage(started, late)).toContain('Lâu hơn bình thường: bài này có thể bị kẹt.');
+    expect(gradingInProgressMessage(started, late, 'ai_graded')).toContain('Lâu hơn bình thường: bài này có thể bị kẹt.');
+  });
+
+  it('đúng ngưỡng 30 phút thì báo kẹt, dưới ngưỡng thì không', () => {
+    expect(gradingInProgressMessage(started, Date.parse(started) + 30 * 60_000)).toContain('có thể bị kẹt');
+    expect(gradingInProgressMessage(started, Date.parse(started) + 30 * 60_000 - 1000)).not.toContain('có thể bị kẹt');
+  });
 });

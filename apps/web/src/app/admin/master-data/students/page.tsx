@@ -211,7 +211,7 @@ function StudentsMasterDataContent() {
     <div className="space-y-6">
       <PageHeader
         title="Sinh viên"
-        description="Catalog sinh viên. Bấm một dòng để xem lớp danh nghĩa và các lớp học phần."
+        description="Danh mục sinh viên. Bấm một dòng để xem lớp danh nghĩa và các lớp học phần."
       />
 
       <CatalogSection

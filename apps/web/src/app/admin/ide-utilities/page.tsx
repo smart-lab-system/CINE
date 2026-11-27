@@ -13,6 +13,7 @@ import {
   type CatalogStatus,
   type ViolationExtension,
 } from '@/lib/api/ide-utilities';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type Tab = 'catalog' | 'violations';
 
@@ -121,13 +122,13 @@ export default function IdeUtilitiesPage() {
         displayName: item.displayName ?? undefined,
       });
       if (res.alreadyExists) {
-        setInfo(`${item.extensionId}${item.version ? `@${item.version}` : ''} đã có trong catalog.`);
+        setInfo(`${item.extensionId}${item.version ? `@${item.version}` : ''} đã có trong danh mục.`);
       } else if (res.createdExtension) {
-        setInfo(`Đã thêm ${item.extensionId} vào catalog.`);
+        setInfo(`Đã thêm ${item.extensionId} vào danh mục.`);
       } else if (res.createdVersion) {
         setInfo(`Đã thêm phiên bản ${item.version} vào ${item.extensionId}.`);
       } else {
-        setInfo('Đã cập nhật catalog.');
+        setInfo('Đã cập nhật danh mục.');
       }
       await Promise.all([reloadCatalog(), reloadViolations()]);
     } catch (e) {
@@ -142,12 +143,12 @@ export default function IdeUtilitiesPage() {
       <div className="border-b px-4 py-4 md:px-6">
         <PageHeader
           title="Quản lý tiện ích IDE"
-          description="Catalog extension VS Code (duyệt theo phiên bản / *) và danh sách extension vi phạm chưa được duyệt."
+          description="Danh mục tiện ích VS Code (duyệt theo phiên bản / *) và danh sách tiện ích vi phạm chưa được duyệt."
         />
         <div className="mt-4 flex flex-wrap gap-2">
           {(
             [
-              ['catalog', 'Catalog extension'],
+              ['catalog', 'Danh mục tiện ích'],
               ['violations', 'Vi phạm'],
             ] as const
           ).map(([id, label]) => (
@@ -173,13 +174,13 @@ export default function IdeUtilitiesPage() {
             <div className="flex flex-wrap gap-2">
               <input
                 className="rounded-md border bg-background px-2 py-1.5 text-sm"
-                placeholder="Extension name"
+                placeholder="Tên tiện ích"
                 value={newDisplayName}
                 onChange={(e) => setNewDisplayName(e.target.value)}
               />
               <input
                 className="rounded-md border bg-background px-2 py-1.5 text-sm"
-                placeholder="Publisher"
+                placeholder="Nhà phát hành"
                 value={newPublisher}
                 onChange={(e) => setNewPublisher(e.target.value)}
               />
@@ -195,49 +196,47 @@ export default function IdeUtilitiesPage() {
                 className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
                 onClick={() => void onAddCatalog()}
               >
-                Thêm extension
+                Thêm tiện ích
               </button>
             </div>
 
             {catalog.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Chưa có extension nào trong catalog.</p>
+              <p className="text-sm text-muted-foreground">Chưa có tiện ích nào trong danh mục.</p>
             ) : (
-              <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-                <table className="w-full min-w-[960px] text-sm">
-                  <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
-                    <tr className="text-left text-muted-foreground">
-                      <th className="px-3 py-2.5 font-medium">Extension name</th>
-                      <th className="px-3 py-2.5 font-medium">Publisher</th>
-                      <th className="px-3 py-2.5 font-medium">Identifier</th>
-                      <th className="px-3 py-2.5 font-medium">Published</th>
-                      <th className="px-3 py-2.5 font-medium">Last Released</th>
-                      <th className="px-3 py-2.5 font-medium">Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {catalog.map((ext) => (
-                      <tr
-                        key={ext.id}
-                        className="cursor-pointer border-t hover:bg-muted/60"
-                        onClick={() => router.push(`${basePath}/${ext.id}`)}
-                      >
-                        <td className="px-3 py-2.5 font-medium">{ext.displayName}</td>
-                        <td className="px-3 py-2.5">{ext.publisher}</td>
-                        <td className="px-3 py-2.5 font-mono text-xs">{ext.identifier}</td>
-                        <td className="px-3 py-2.5">{formatDate(ext.publishedAt)}</td>
-                        <td className="px-3 py-2.5">{formatDate(ext.lastReleasedAt)}</td>
-                        <td className="px-3 py-2.5">
-                          <span
-                            className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusBadgeClass(ext.catalogStatus)}`}
-                          >
-                            {CATALOG_STATUS_LABEL[ext.catalogStatus]}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Table container={{ className: 'max-h-[65vh] rounded-md border' }} className="w-full min-w-[960px] text-sm">
+                <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+                  <TableRow className="text-left text-muted-foreground">
+                    <TableHead className="px-3 py-2.5 font-medium">Tên tiện ích</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Nhà phát hành</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Mã định danh</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Ngày xuất bản</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Phát hành gần nhất</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Trạng thái</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {catalog.map((ext) => (
+                    <TableRow
+                      key={ext.id}
+                      className="cursor-pointer hover:bg-muted/60"
+                      onClick={() => router.push(`${basePath}/${ext.id}`)}
+                    >
+                      <TableCell className="px-3 py-2.5 font-medium">{ext.displayName}</TableCell>
+                      <TableCell className="px-3 py-2.5">{ext.publisher}</TableCell>
+                      <TableCell className="px-3 py-2.5 font-mono text-xs">{ext.identifier}</TableCell>
+                      <TableCell className="px-3 py-2.5">{formatDate(ext.publishedAt)}</TableCell>
+                      <TableCell className="px-3 py-2.5">{formatDate(ext.lastReleasedAt)}</TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <span
+                          className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${statusBadgeClass(ext.catalogStatus)}`}
+                        >
+                          {CATALOG_STATUS_LABEL[ext.catalogStatus]}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </section>
         )}
@@ -246,57 +245,55 @@ export default function IdeUtilitiesPage() {
           <section className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
             {violations.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Chưa có extension vi phạm chưa được duyệt.
+                Chưa có tiện ích vi phạm chưa được duyệt.
               </p>
             ) : (
-              <div className="overflow-auto rounded-md border">
-                <table className="w-full min-w-[960px] text-sm">
-                  <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
-                    <tr className="text-left text-muted-foreground">
-                      <th className="px-3 py-2.5 font-medium">Extension name</th>
-                      <th className="px-3 py-2.5 font-medium">Publisher</th>
-                      <th className="px-3 py-2.5 font-medium">Identifier</th>
-                      <th className="px-3 py-2.5 font-medium"># Version</th>
-                      <th className="px-3 py-2.5 font-medium"># Lần</th>
-                      <th className="px-3 py-2.5 font-medium"># SV</th>
-                      <th className="px-3 py-2.5 font-medium">Catalog</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {violations.map((ext) => {
-                      const expanded = expandedExt === ext.extensionId;
-                      return (
-                        <ViolationExtensionRows
-                          key={ext.extensionId}
-                          ext={ext}
-                          expanded={expanded}
-                          openVersionKey={openVersionKey}
-                          importingKey={importingKey}
-                          onToggle={() => {
-                            setExpandedExt(expanded ? null : ext.extensionId);
-                            setOpenVersionKey(null);
-                          }}
-                          onToggleVersion={(key) =>
-                            setOpenVersionKey((cur) => (cur === key ? null : key))
+              <Table container={{ className: 'rounded-md border' }} className="w-full min-w-[960px] text-sm">
+                <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+                  <TableRow className="text-left text-muted-foreground">
+                    <TableHead className="px-3 py-2.5 font-medium">Tên tiện ích</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Nhà phát hành</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Mã định danh</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Số phiên bản</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Số lần</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Số sinh viên</TableHead>
+                    <TableHead className="px-3 py-2.5 font-medium">Danh mục</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {violations.map((ext) => {
+                    const expanded = expandedExt === ext.extensionId;
+                    return (
+                      <ViolationExtensionRows
+                        key={ext.extensionId}
+                        ext={ext}
+                        expanded={expanded}
+                        openVersionKey={openVersionKey}
+                        importingKey={importingKey}
+                        onToggle={() => {
+                          setExpandedExt(expanded ? null : ext.extensionId);
+                          setOpenVersionKey(null);
+                        }}
+                        onToggleVersion={(key) =>
+                          setOpenVersionKey((cur) => (cur === key ? null : key))
+                        }
+                        onImport={(version, displayName) =>
+                          void onImportFromViolation({
+                            extensionId: ext.extensionId,
+                            version,
+                            displayName,
+                          })
+                        }
+                        onOpenCatalog={() => {
+                          if (ext.catalogExtensionPk) {
+                            router.push(`${basePath}/${ext.catalogExtensionPk}`);
                           }
-                          onImport={(version, displayName) =>
-                            void onImportFromViolation({
-                              extensionId: ext.extensionId,
-                              version,
-                              displayName,
-                            })
-                          }
-                          onOpenCatalog={() => {
-                            if (ext.catalogExtensionPk) {
-                              router.push(`${basePath}/${ext.catalogExtensionPk}`);
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                        }}
+                      />
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </section>
         )}
@@ -326,14 +323,14 @@ function ViolationExtensionRows({
 }) {
   return (
     <>
-      <tr className="cursor-pointer border-t hover:bg-muted/60" onClick={onToggle}>
-        <td className="px-3 py-2.5 font-medium">{ext.displayName ?? '-'}</td>
-        <td className="px-3 py-2.5">{ext.publisher ?? '-'}</td>
-        <td className="px-3 py-2.5 font-mono text-xs">{ext.extensionId}</td>
-        <td className="px-3 py-2.5">{ext.versionCount}</td>
-        <td className="px-3 py-2.5">{ext.incidentCount}</td>
-        <td className="px-3 py-2.5">{ext.studentCount}</td>
-        <td className="px-3 py-2.5">
+      <TableRow className="cursor-pointer hover:bg-muted/60" onClick={onToggle}>
+        <TableCell className="px-3 py-2.5 font-medium">{ext.displayName ?? '-'}</TableCell>
+        <TableCell className="px-3 py-2.5">{ext.publisher ?? '-'}</TableCell>
+        <TableCell className="px-3 py-2.5 font-mono text-xs">{ext.extensionId}</TableCell>
+        <TableCell className="px-3 py-2.5">{ext.versionCount}</TableCell>
+        <TableCell className="px-3 py-2.5">{ext.incidentCount}</TableCell>
+        <TableCell className="px-3 py-2.5">{ext.studentCount}</TableCell>
+        <TableCell className="px-3 py-2.5">
           {ext.inCatalog ? (
             <button
               type="button"
@@ -348,11 +345,11 @@ function ViolationExtensionRows({
           ) : (
             <span className="text-muted-foreground">Chưa có</span>
           )}
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
       {expanded && (
-        <tr className="border-t bg-muted/20">
-          <td colSpan={7} className="px-3 py-3">
+        <TableRow className="bg-muted/20">
+          <TableCell colSpan={7} className="px-3 py-3">
             <div className="space-y-2">
               {ext.versions.map((ver) => {
                 const vKey = `${ext.extensionId}@${ver.version ?? ''}`;
@@ -381,47 +378,45 @@ function ViolationExtensionRows({
                         className="rounded-md border px-2 py-1 text-xs text-primary disabled:opacity-50"
                         onClick={() => onImport(ver.version, ext.displayName)}
                       >
-                        {importingKey === importKey ? 'Đang thêm…' : 'Thêm vào catalog'}
+                        {importingKey === importKey ? 'Đang thêm…' : 'Thêm vào danh mục'}
                       </button>
                     </div>
                     {open && (
-                      <div className="overflow-auto border-t">
-                        <table className="w-full min-w-[720px] text-sm">
-                          <thead>
-                            <tr className="text-left text-muted-foreground">
-                              <th className="px-3 py-2 font-medium">Kỳ thi</th>
-                              <th className="px-3 py-2 font-medium">Môn</th>
-                              <th className="px-3 py-2 font-medium">MSSV</th>
-                              <th className="px-3 py-2 font-medium">Họ tên</th>
-                              <th className="px-3 py-2 font-medium">Máy</th>
-                              <th className="px-3 py-2 font-medium">Thời điểm</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {ver.incidents.map((inc) => (
-                              <tr key={inc.scanItemId} className="border-t">
-                                <td className="px-3 py-2">{inc.examSessionName ?? '-'}</td>
-                                <td className="px-3 py-2">{inc.courseName ?? '-'}</td>
-                                <td className="px-3 py-2 font-mono text-xs">{inc.studentMssv}</td>
-                                <td className="px-3 py-2">{inc.studentFullName ?? '-'}</td>
-                                <td className="px-3 py-2 text-xs text-muted-foreground">
-                                  {inc.machineName ?? inc.machineId}
-                                </td>
-                                <td className="px-3 py-2 text-xs text-muted-foreground">
-                                  {formatDateTime(inc.scannedAt)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <Table container={{ className: 'border-t' }} className="w-full min-w-[720px] text-sm">
+                        <TableHeader>
+                          <TableRow className="text-left text-muted-foreground">
+                            <TableHead className="px-3 py-2 font-medium">Kỳ thi</TableHead>
+                            <TableHead className="px-3 py-2 font-medium">Môn</TableHead>
+                            <TableHead className="px-3 py-2 font-medium">MSSV</TableHead>
+                            <TableHead className="px-3 py-2 font-medium">Họ tên</TableHead>
+                            <TableHead className="px-3 py-2 font-medium">Máy</TableHead>
+                            <TableHead className="px-3 py-2 font-medium">Thời điểm</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ver.incidents.map((inc) => (
+                            <TableRow key={inc.scanItemId}>
+                              <TableCell className="px-3 py-2">{inc.examSessionName ?? '-'}</TableCell>
+                              <TableCell className="px-3 py-2">{inc.courseName ?? '-'}</TableCell>
+                              <TableCell className="px-3 py-2 font-mono text-xs">{inc.studentMssv}</TableCell>
+                              <TableCell className="px-3 py-2">{inc.studentFullName ?? '-'}</TableCell>
+                              <TableCell className="px-3 py-2 text-xs text-muted-foreground">
+                                {inc.machineName ?? inc.machineId}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-xs text-muted-foreground">
+                                {formatDateTime(inc.scannedAt)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     )}
                   </div>
                 );
               })}
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   );

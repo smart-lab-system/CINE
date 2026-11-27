@@ -10,8 +10,11 @@ import { gradingInProgressMessage } from '@/lib/grading-elapsed';
  */
 export function GradingInProgressAlert({
   gradingTriggeredAt,
+  status,
 }: {
   gradingTriggeredAt?: string | null;
+  /** `ai_grading` (mặc định) hoặc `ai_graded`: hai trạng thái có hai câu khác nhau. */
+  status?: string;
 }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -22,7 +25,7 @@ export function GradingInProgressAlert({
 
   return (
     <Alert variant="info">
-      <AlertDescription>{gradingInProgressMessage(gradingTriggeredAt, nowMs)}</AlertDescription>
+      <AlertDescription>{gradingInProgressMessage(gradingTriggeredAt, nowMs, status)}</AlertDescription>
     </Alert>
   );
 }

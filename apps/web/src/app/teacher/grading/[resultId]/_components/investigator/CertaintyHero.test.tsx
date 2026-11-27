@@ -10,17 +10,21 @@ const NO_AGREEMENT = { n: 0, disagreements: 0, paused: false };
 
 describe('certaintyState', () => {
   it('đạt / vừa đủ / chưa đạt quanh ngưỡng θ = 0,85', () => {
-    expect(certaintyState({ confidence: 0.95, theta: 0.85, hasPricedErrors: true, paused: false })).toBe('reached');
-    expect(certaintyState({ confidence: 0.85, theta: 0.85, hasPricedErrors: true, paused: false })).toBe('borderline');
-    expect(certaintyState({ confidence: 0.75, theta: 0.85, hasPricedErrors: true, paused: false })).toBe('below');
+    expect(certaintyState({ confidence: 0.95, theta: 0.85, paused: false })).toBe('reached');
+    expect(certaintyState({ confidence: 0.85, theta: 0.85, paused: false })).toBe('borderline');
+    expect(certaintyState({ confidence: 0.75, theta: 0.85, paused: false })).toBe('below');
   });
 
-  it('bài không có lỗi nào → chưa đo được, dù confidence nội bộ là 1,0', () => {
-    expect(certaintyState({ confidence: 1, theta: 0.85, hasPricedErrors: false, paused: false })).toBe('unmeasured');
+  it('bài không có lỗi nào vẫn có mức theo confidence đã lưu (quyết định 27/11/2026)', () => {
+    expect(certaintyState({ confidence: 0.97, theta: 0.85, paused: false })).toBe('reached');
+  });
+
+  it('chưa có confidence → chưa đo được', () => {
+    expect(certaintyState({ confidence: null, theta: 0.85, paused: false })).toBe('unmeasured');
   });
 
   it('thuộc loại đã tạm dừng tự chốt → paused, trước mọi trạng thái khác', () => {
-    expect(certaintyState({ confidence: 0.95, theta: 0.85, hasPricedErrors: true, paused: true })).toBe('paused');
+    expect(certaintyState({ confidence: 0.95, theta: 0.85, paused: true })).toBe('paused');
   });
 });
 
@@ -32,13 +36,20 @@ describe('CertaintyHero', () => {
     expect(screen.getByText(/ro_ri_bo_nho/)).toBeInTheDocument();
   });
 
-  it('bài không có lỗi nào: KHÔNG hiện số %, nói "Chưa đo được" và cảnh báo không có nghĩa là đúng', () => {
-    render(<CertaintyHero confidence={1} theta={0.85} terms={NONE} agreement={NO_AGREEMENT} />);
+  it('bài không có lỗi nào: hiện số %, chip theo ngưỡng và dòng nói số này đến từ mức kiểm tra bài', () => {
+    render(<CertaintyHero confidence={0.97} theta={0.85} terms={NONE} agreement={NO_AGREEMENT} />);
+    expect(screen.getByText('97%')).toBeInTheDocument();
+    expect(screen.getByText('Đạt ngưỡng')).toBeInTheDocument();
+    expect(screen.queryByText('Chưa đo được')).not.toBeInTheDocument();
+    expect(screen.getByText(/mức này đến từ mức kiểm tra bài \(độ phủ\)/)).toBeInTheDocument();
+    expect(screen.getByTestId('threshold-marker')).toBeInTheDocument();
+  });
+
+  it('chưa có confidence: vẫn nói "Chưa đo được", không bịa số', () => {
+    render(<CertaintyHero confidence={null} theta={0.85} terms={NONE} agreement={NO_AGREEMENT} />);
     expect(screen.getByText('Chưa đo được')).toBeInTheDocument();
-    expect(screen.queryByText('100%')).not.toBeInTheDocument();
-    expect(screen.queryByText('Đạt ngưỡng')).not.toBeInTheDocument();
-    expect(screen.getByText('Bài không có lỗi nào')).toBeInTheDocument();
-    expect(screen.getByText(/Không thấy lỗi không có nghĩa là bài đúng/)).toBeInTheDocument();
+    expect(screen.getByText('Chưa có mức chắc chắn')).toBeInTheDocument();
+    expect(screen.queryByTestId('threshold-marker')).not.toBeInTheDocument();
   });
 
   it('bài thuộc loại đã tạm dừng: chip nêu rõ và không có vạch ngưỡng', () => {

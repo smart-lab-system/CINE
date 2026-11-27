@@ -76,6 +76,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 - Ảnh 57, 58: banner "AI đang chấm bài này - đã 172 giờ". Bài đã ở `ai_graded`.
 - Đã đọc hàm: `gradingInProgressMessage` (`apps/web/src/lib/grading-elapsed.ts`) chỉ dựa vào `gradingTriggeredAt`, không dựa vào trạng thái. Lỗi nằm ở điều kiện hiển thị banner. Cần kiểm chỗ gọi hàm.
 
+- **Xử lý (PR sửa L-12):** đọc backend cho thấy `ai_graded` là trạng thái chuyển tiếp THẬT (AI đã trả lời, chờ xếp loại sang `auto_approved` hoặc `flagged_for_review`, `grading.service.ts`), nên việc khoá hồ sơ ở trạng thái này là đúng. Lỗi nằm ở câu chữ và đồng hồ: banner nói "AI đang chấm" cho cả `ai_graded` và đếm mãi không ngưỡng. Đã sửa: `ai_graded` nói "AI đã chấm xong, hệ thống đang xếp loại"; quá 30 phút ở một bước thì thêm "Lâu hơn bình thường: bài này có thể bị kẹt". Bài đứng ở `ai_graded` hàng trăm giờ trong ảnh phần lớn là hiện vật của seed (seed ghi thẳng `ai_graded`, không qua bộ xếp loại); nếu xảy ra thật là một job chết giữa chừng và hiện chưa có nút gỡ kẹt cho trạng thái này (backend).
+
 ### L-13 · Hai bài có cùng đoạn code nhưng điểm khác nhau · Cao · Nghi ngờ
 - Ảnh 59, 60 (bài [SV]) và 67, 68 (bài [SV]): code giống hệt nhau, nhưng điểm 5/5 với độ tin cậy 0,66 và 2,5/5 với 0,88.
 - Có thể do seed trùng nội dung, hoặc do chấm không xác định. Cần kiểm dữ liệu đầu vào.
@@ -94,6 +96,8 @@ Quy tắc đợt refactor: KHÔNG sửa logic trong PR giao diện. Mỗi mục 
 ### L-17 · Dòng audit hiển thị mã kỹ thuật và tên trường thô · Cao
 - Cột hành động: `grading_result.score_reapplied_after_finalize`, `exam_session.reassign_teacher`. Cột "Trường đã đổi": `finalScore`, `grantedTo`, `until`. Placeholder lọc: "vd: grading.override" (ảnh 3, 4).
 - Hướng sửa: bảng nhãn tiếng Việt cho từng mã hành động và từng trường.
+
+- **Xử lý (PR sửa L-17):** thêm `lib/audit-labels.ts` (nhãn cho 6 hành động, 3 loại đối tượng, 13 tên trường mà backend đang ghi). Trang nhật ký hiện nhãn tiếng Việt, mã thô nằm trong tooltip; mã chưa có nhãn giữ nguyên mã. Ô lọc hành động thành danh sách chọn (backend lọc khớp chính xác, nên gõ tự do không có ích). Mục menu "Audit log" đổi thành "Nhật ký thao tác". Còn mở: hành động mới ở backend phải thêm một dòng nhãn, nếu không sẽ hiện mã thô.
 
 ### L-18 · Phiên bản IDE "đã duyệt" nhưng không có tệp · Cao · Nghi ngờ
 - Ảnh 13 (C/C++ 1.22.11, 1.21.6): trạng thái "Đã duyệt", cột File "-", và trang browse báo "Phiên bản chưa có file .vsix". Cùng giây duyệt và thêm.
@@ -191,6 +195,8 @@ Các mục **không** phải lỗi seed vẫn còn nguyên, cần sửa ở sả
 - Hướng sửa (để chủ dự án quyết định): hiển thị confidence đã lưu khi không null, và chỉ dùng "Chưa đo được" khi backend thật sự không có giá trị.
 
 ---
+
+- **Xử lý (PR sửa L-25): chủ dự án quyết định hiện số % cho bài không có lỗi (27/11/2026).** Ban đầu spec `2026-10-21-cham-diem-duyet-nhanh-design.md` §5.8b chủ đích ẩn số % ở bài sạch (giá trị 1,0 chỉ nói về độ phủ; ở lượt `ngan-xep-v2` lượt 1, 3 trên 10 bài confidence 100% vẫn điểm sai). Chủ dự án chọn hiện số để minh chứng độ chính xác nên spec §5.8b, câu hỏi mở số 8 và danh sách test đã sửa theo. Hero hiện số %, vạch ngưỡng và chip theo θ, kèm dòng "đến từ mức kiểm tra bài (độ phủ), không phải từ một lỗi cụ thể", và "Độ khớp với bạn" vẫn đặt cạnh số. Lưu ý đã nói với chủ dự án: số này vẫn là confidence tự gán theo độ phủ, chưa hiệu chỉnh với nhãn giảng viên.
 
 ## G. Chấm lại các màn chấm điểm sau khi seed lại
 

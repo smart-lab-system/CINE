@@ -16,6 +16,7 @@ import {
   type CatalogStatus,
 } from '@/lib/api/ide-utilities';
 import { approveWarning } from '@/lib/ide-version-approval';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function formatDate(value: string | null) {
   if (!value) return '-';
@@ -119,7 +120,7 @@ export default function IdeUtilityDetailPage() {
         </Link>
         <PageHeader
           title={detail.displayName}
-          description="Chi tiết extension và quản lý phiên bản (exact / duyệt mọi phiên bản *)."
+          description="Chi tiết tiện ích và quản lý phiên bản (đúng phiên bản / duyệt mọi phiên bản *)."
         />
         {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
         {info && <p className="mt-3 text-sm text-success-strong">{info}</p>}
@@ -133,23 +134,23 @@ export default function IdeUtilityDetailPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto px-4 py-4 md:px-6">
         <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <dt className="text-muted-foreground">Extension name</dt>
+            <dt className="text-muted-foreground">Tên tiện ích</dt>
             <dd className="font-medium">{detail.displayName}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Publisher</dt>
+            <dt className="text-muted-foreground">Nhà phát hành</dt>
             <dd>{detail.publisher}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Identifier</dt>
+            <dt className="text-muted-foreground">Mã định danh</dt>
             <dd className="font-mono text-xs">{detail.identifier}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Published</dt>
+            <dt className="text-muted-foreground">Ngày xuất bản</dt>
             <dd>{formatDate(detail.publishedAt)}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Last Released</dt>
+            <dt className="text-muted-foreground">Phát hành gần nhất</dt>
             <dd>{formatDate(detail.lastReleasedAt)}</dd>
           </div>
           <div>
@@ -174,7 +175,7 @@ export default function IdeUtilityDetailPage() {
                 const res = await refreshMarketplace(detail.id);
                 setInfo(
                   res.refreshed
-                    ? 'Đã cập nhật metadata từ Marketplace.'
+                    ? 'Đã cập nhật thông tin từ Marketplace.'
                     : 'Không lấy được dữ liệu Marketplace - giữ thông tin hiện tại.',
                 );
               })
@@ -224,123 +225,121 @@ export default function IdeUtilityDetailPage() {
               Chưa có phiên bản nào. Thêm semver hoặc cấu hình *.
             </p>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
-                  <tr className="text-left text-muted-foreground">
-                    <th className="px-3 py-2.5 font-medium">Phiên bản</th>
-                    <th className="px-3 py-2.5 font-medium">Ngày thêm phiên bản</th>
-                    <th className="px-3 py-2.5 font-medium">Ngày approved</th>
-                    <th className="px-3 py-2.5 font-medium">Trạng thái</th>
-                    <th className="px-3 py-2.5 font-medium">File</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.versions.map((v) => (
-                    <tr key={v.id} className="border-t">
-                      <td className="px-3 py-2.5 font-mono">
-                        {v.version === '*' ? (
-                          <span>
-                            *{' '}
-                            <span className="text-xs text-muted-foreground">(Mọi phiên bản)</span>
+            <Table container={{ className: 'max-h-[65vh] rounded-md border' }} className="w-full min-w-[720px] text-sm">
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-[0_1px_0_0_hsl(var(--border))]">
+                <TableRow className="text-left text-muted-foreground">
+                  <TableHead className="px-3 py-2.5 font-medium">Phiên bản</TableHead>
+                  <TableHead className="px-3 py-2.5 font-medium">Ngày thêm phiên bản</TableHead>
+                  <TableHead className="px-3 py-2.5 font-medium">Ngày duyệt</TableHead>
+                  <TableHead className="px-3 py-2.5 font-medium">Trạng thái</TableHead>
+                  <TableHead className="px-3 py-2.5 font-medium">File</TableHead>
+                  <TableHead className="px-3 py-2.5 text-right font-medium">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {detail.versions.map((v) => (
+                  <TableRow key={v.id}>
+                    <TableCell className="px-3 py-2.5 font-mono">
+                      {v.version === '*' ? (
+                        <span>
+                          *{' '}
+                          <span className="text-xs text-muted-foreground">(Mọi phiên bản)</span>
+                        </span>
+                      ) : v.approvalStatus !== 'approved' &&
+                        (v.storageKey || v.artifactUploadedAt) ? (
+                        <Link
+                          href={`${pathname}/versions/${v.id}/browse`}
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          {v.version}
+                        </Link>
+                      ) : (
+                        v.version
+                      )}
+                    </TableCell>
+                    <TableCell className="px-3 py-2.5">{formatDateTime(v.addedAt)}</TableCell>
+                    <TableCell className="px-3 py-2.5">{formatDateTime(v.approvedAt)}</TableCell>
+                    <TableCell className="px-3 py-2.5">{versionStatusLabel(v.approvalStatus)}</TableCell>
+                    <TableCell className="px-3 py-2.5">
+                      {v.version !== '*' && (v.storageKey || v.artifactUploadedAt) ? (
+                        <span className="inline-flex flex-wrap items-center gap-1">
+                          <span className="inline-flex rounded-md bg-success-subtle px-2 py-0.5 text-xs font-medium text-success-strong">
+                            Đã có file
                           </span>
-                        ) : v.approvalStatus !== 'approved' &&
-                          (v.storageKey || v.artifactUploadedAt) ? (
-                          <Link
-                            href={`${pathname}/versions/${v.id}/browse`}
-                            className="text-primary underline-offset-2 hover:underline"
-                          >
-                            {v.version}
-                          </Link>
-                        ) : (
-                          v.version
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5">{formatDateTime(v.addedAt)}</td>
-                      <td className="px-3 py-2.5">{formatDateTime(v.approvedAt)}</td>
-                      <td className="px-3 py-2.5">{versionStatusLabel(v.approvalStatus)}</td>
-                      <td className="px-3 py-2.5">
-                        {v.version !== '*' && (v.storageKey || v.artifactUploadedAt) ? (
-                          <span className="inline-flex flex-wrap items-center gap-1">
-                            <span className="inline-flex rounded-md bg-success-subtle px-2 py-0.5 text-xs font-medium text-success-strong">
-                              Đã có file
+                          {v.extractStatus === 'ready' ? (
+                            <span className="inline-flex rounded-md bg-info-subtle px-2 py-0.5 text-xs font-medium text-info-strong">
+                              Sẵn sàng xem
                             </span>
-                            {v.extractStatus === 'ready' ? (
-                              <span className="inline-flex rounded-md bg-info-subtle px-2 py-0.5 text-xs font-medium text-info-strong">
-                                Sẵn sàng xem
-                              </span>
-                            ) : null}
-                            {v.extractStatus === 'pending' || v.extractStatus === 'extracting' ? (
-                              <span className="inline-flex rounded-md bg-warning-subtle px-2 py-0.5 text-xs font-medium text-warning-strong">
-                                Đang giải nén
-                              </span>
-                            ) : null}
-                            {v.extractStatus === 'failed' ? (
-                              <span className="inline-flex rounded-md bg-danger-subtle px-2 py-0.5 text-xs font-medium text-danger-strong">
-                                Lỗi giải nén
-                              </span>
-                            ) : null}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </td>
-                      <td className="space-x-2 px-3 py-2.5 text-right">
-                        {v.approvalStatus !== 'approved' ? (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            className="text-primary disabled:opacity-50"
-                            onClick={() => {
-                              const warning = approveWarning(v);
-                              if (warning && !window.confirm(warning)) return;
-                              void run(() => approveVersion(v.id));
-                            }}
-                          >
-                            Approve
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            className="text-warning-strong disabled:opacity-50"
-                            onClick={() => {
-                              if (
-                                v.version === '*' &&
-                                !window.confirm(
-                                  'Hủy duyệt * sẽ hết quyền «mọi phiên bản». Tiếp tục?',
-                                )
-                              ) {
-                                return;
-                              }
-                              void run(() => unapproveVersion(v.id));
-                            }}
-                          >
-                            Hủy approved
-                          </button>
-                        )}
+                          ) : null}
+                          {v.extractStatus === 'pending' || v.extractStatus === 'extracting' ? (
+                            <span className="inline-flex rounded-md bg-warning-subtle px-2 py-0.5 text-xs font-medium text-warning-strong">
+                              Đang giải nén
+                            </span>
+                          ) : null}
+                          {v.extractStatus === 'failed' ? (
+                            <span className="inline-flex rounded-md bg-danger-subtle px-2 py-0.5 text-xs font-medium text-danger-strong">
+                              Lỗi giải nén
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="space-x-2 px-3 py-2.5 text-right">
+                      {v.approvalStatus !== 'approved' ? (
                         <button
                           type="button"
                           disabled={busy}
-                          className="text-destructive disabled:opacity-50"
+                          className="text-primary disabled:opacity-50"
                           onClick={() => {
-                            const msg =
-                              v.version === '*'
-                                ? 'Xóa cấu hình *? Thao tác không hoàn tác.'
-                                : `Xóa phiên bản ${v.version}? Thao tác không hoàn tác.`;
-                            if (!window.confirm(msg)) return;
-                            void run(() => deleteVersion(v.id));
+                            const warning = approveWarning(v);
+                            if (warning && !window.confirm(warning)) return;
+                            void run(() => approveVersion(v.id));
                           }}
                         >
-                          Xóa phiên bản
+                          Duyệt
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          className="text-warning-strong disabled:opacity-50"
+                          onClick={() => {
+                            if (
+                              v.version === '*' &&
+                              !window.confirm(
+                                'Hủy duyệt * sẽ hết quyền «mọi phiên bản». Tiếp tục?',
+                              )
+                            ) {
+                              return;
+                            }
+                            void run(() => unapproveVersion(v.id));
+                          }}
+                        >
+                          Hủy duyệt
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="text-destructive disabled:opacity-50"
+                        onClick={() => {
+                          const msg =
+                            v.version === '*'
+                              ? 'Xóa cấu hình *? Thao tác không hoàn tác.'
+                              : `Xóa phiên bản ${v.version}? Thao tác không hoàn tác.`;
+                          if (!window.confirm(msg)) return;
+                          void run(() => deleteVersion(v.id));
+                        }}
+                      >
+                        Xóa phiên bản
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </section>
       </div>

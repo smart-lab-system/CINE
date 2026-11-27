@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import type { AuditLogFilter, AuditLogItem } from '@/lib/api/audit-log';
+import { ACTION_OPTIONS, actionLabel, fieldLabel, targetLabel } from '@/lib/audit-labels';
 
 const NO_FILTER: AuditLogFilter = {};
 
@@ -44,12 +45,19 @@ export default function AuditLogPage() {
       <form onSubmit={apply} className="flex flex-wrap items-end gap-3" aria-label="Bộ lọc nhật ký">
         <div className="flex min-w-[14rem] flex-col gap-1">
           <Label htmlFor="audit-action">Hành động</Label>
-          <Input
+          <select
             id="audit-action"
-            placeholder="vd: grading.override"
+            className="flex h-10 w-full rounded-md border border-input bg-surface px-3 text-body text-foreground shadow-sm focus:border-accent focus:outline-none"
             value={draft.action}
             onChange={(e) => setDraft((d) => ({ ...d, action: e.target.value }))}
-          />
+          >
+            <option value="">Tất cả hành động</option>
+            {ACTION_OPTIONS.map((o) => (
+              <option key={o.code} value={o.code}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="audit-from">Từ ngày</Label>
@@ -96,9 +104,15 @@ export default function AuditLogPage() {
                   {new Date(item.occurredAt).toLocaleString('vi-VN')}
                 </TableCell>
                 <TableCell>{item.actorName ?? 'Hệ thống'}</TableCell>
-                <TableCell className="font-mono text-caption">{item.action}</TableCell>
+                <TableCell>
+                  {actionLabel(item.action) ? (
+                    <span title={item.action}>{actionLabel(item.action)}</span>
+                  ) : (
+                    <span className="font-mono text-caption">{item.action}</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-caption">
-                  {item.targetType} · <span className="font-mono">{item.targetId.slice(0, 8)}</span>
+                  {targetLabel(item.targetType)} · <span className="font-mono">{item.targetId.slice(0, 8)}</span>
                 </TableCell>
                 <TableCell>
                   {item.changedFields.length === 0 ? (
@@ -106,8 +120,12 @@ export default function AuditLogPage() {
                   ) : (
                     <span className="flex flex-wrap gap-1">
                       {item.changedFields.map((f) => (
-                        <span key={f} className="rounded bg-surface-muted px-1.5 py-0.5 font-mono text-caption">
-                          {f}
+                        <span
+                          key={f}
+                          title={fieldLabel(f) ? f : undefined}
+                          className={`rounded bg-surface-2 px-1.5 py-0.5 text-caption ${fieldLabel(f) ? '' : 'font-mono'}`}
+                        >
+                          {fieldLabel(f) ?? f}
                         </span>
                       ))}
                     </span>

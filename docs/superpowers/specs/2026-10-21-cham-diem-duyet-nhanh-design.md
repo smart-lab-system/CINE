@@ -244,7 +244,7 @@ Nguyên tắc: nói như một đồng nghiệp. Dùng "hệ thống" thay cho "
 | Kiểm mẫu, cầu dao | Kiểm tra ngẫu nhiên, tạm dừng tự chốt điểm |
 | Xác nhận hàng loạt | Duyệt nhanh theo nhóm lỗi; nút "Duyệt N bài" |
 | Độ phủ điều tra | Hệ thống đã kiểm tra những gì |
-| Mức chắc chắn của bài không có lỗi nào (giá trị nội bộ 1,0) | Chưa đo được |
+| Mức chắc chắn của bài không có lỗi nào (theo độ phủ) | Hiện số %, kèm dòng "đến từ mức kiểm tra bài" (quyết định 27/11/2026) |
 | Độ khớp (nhãn kiểm mẫu) | Độ khớp với bạn: "Bạn đồng ý N/M lần" |
 
 "Tự chốt" giữ nguyên vì đã là từ của sản phẩm. Mock-up đã áp bộ từ ngữ này; khi code, `SOURCE_LABEL`, `VERDICT_LABEL`, `lensLabel` trong `grading-vocab.ts` và các chuỗi trong test phải đổi theo.
@@ -253,7 +253,7 @@ Nguyên tắc: nói như một đồng nghiệp. Dùng "hệ thống" thay cho "
 Giảng viên cần liếc một lần là biết hệ thống chấm bài này đáng tin đến đâu.
 - **Hero đầu trang chi tiết:** số % lớn (56px), thanh 0–100% có vạch ngưỡng θ, chip bằng chữ (đạt ngưỡng / vừa đủ ngưỡng / chưa đạt ngưỡng kèm "thiếu N điểm phần trăm" / không có lỗi nào để đo / đã tạm dừng tự chốt), và một dòng nêu lỗi kéo mức thấp nhất. Không chỉ dựa vào màu. Con số cũng hiện ở đầu mỗi thẻ lỗi (trần theo nguồn lỗi), ở khối "Quyết định của bạn" và ở mỗi nhóm trong panel duyệt nhanh.
 - **Trung thực về giới hạn của con số.** Mức chắc chắn là confidence tự gán theo nguồn lỗi (§3), **chưa được hiệu chỉnh với nhãn giảng viên**. Ở lượt `ngan-xep-v2` lượt 1, 10 bài có confidence 100% nhưng 3 bài trong số đó điểm sai (HS2410021, 028, 029), cả ba là bài không lỗi (mẫu tự dựng, mật độ lỗi cấy cao; chỉ là cảnh báo, không phải tỉ lệ thật). Vì vậy:
-  1. Bài không có lỗi nào **không hiện số %**: thay bằng trạng thái chữ **"Chưa đo được"** (xám), ô thanh viền đứt không có vạch ngưỡng, chip "Bài không có lỗi nào" và cảnh báo "không thấy lỗi không có nghĩa là bài đúng". Hệ thống vẫn dùng giá trị nội bộ 1,0 (theo độ phủ) để quyết định tự chốt; giao diện không trình bày nó như một mức chắc chắn. Bài thuộc loại đã tạm dừng tự chốt cũng hiện "Chưa đo được", kèm chip "Đã tạm dừng tự chốt cho loại bài này".
+  1. *(Đổi theo quyết định của chủ dự án, 27/11/2026: số % là minh chứng cho độ chính xác.)* Bài không có lỗi nào **hiện số %** như mọi bài: giá trị là confidence đã lưu (theo độ phủ, bị chặn bởi trần của kết quả), chip theo ngưỡng θ như thường (đạt ngưỡng / vừa đủ), có vạch ngưỡng, kèm một dòng nói rõ số này đến từ mức kiểm tra bài (độ phủ), không phải từ một lỗi cụ thể. Bản đầu của mục này ẩn số % và hiện "Chưa đo được" vì ở lượt `ngan-xep-v2` lượt 1, 3 trên 10 bài có confidence 100% vẫn điểm sai; con số nên được đọc cùng "Độ khớp với bạn" ngay cạnh nó. Bài thuộc loại đã tạm dừng tự chốt, và bài chưa có confidence, vẫn hiện "Chưa đo được".
   2. Luôn đặt **"Độ khớp với bạn"** ngay cạnh số %; đây mới là thước đo chất lượng trên thực tế.
 - **Độ khớp với bạn** lấy từ nhãn kiểm mẫu mù (`audit_rule_label`, `audit_no_error_label`, §5.3): "Bạn đồng ý N/M lần" theo từng quy tắc; hero cộng dồn các quy tắc của bài. Chưa có nhãn → "chưa có bài kiểm tra ngẫu nhiên nào". Quy tắc đang bị tạm dừng → chip "Đã tạm dừng tự chốt". Cũng hiện cạnh mỗi quy tắc trong Bảng lỗi.
 - **API (cộng thêm, rỗng trong `blindResultDetail`):** `ResultDetailError.agreement: { n: number; disagreements: number; paused: boolean }` (đếm từ lần bật lại gần nhất) và `ResultDetail.noErrorAgreement` cùng dạng cho lớp không lỗi.
@@ -335,7 +335,7 @@ Chỉ đạt (1) là công cụ tiết kiệm thời gian. Chỉ đạt (3) mà 
 5. **Cổng đo của E2** (§5.9): ba điều kiện và ngưỡng 80%/20% có hợp lý?
 6. **Phạm vi E2:** có làm E2 trong đợt này, hay dừng ở E1 trước và đo `t` rồi mới quyết?
 7. **Ngưỡng §6 và thước §7:** cần trước khi tuyên bố kết quả; không chặn việc làm.
-8. **Nhấn mạnh mức chắc chắn dù chưa hiệu chỉnh** (§5.8b): đề xuất chấp nhận kèm ba biện pháp (độ khớp với bạn đặt cạnh số, bài không lỗi hiện "Chưa đo được" thay cho số, chú thích nói rõ con số chưa đo với nhãn của bạn). Nếu không, nên ẩn số % cho tới khi có đủ nhãn.
+8. **Nhấn mạnh mức chắc chắn dù chưa hiệu chỉnh** (§5.8b): đề xuất chấp nhận kèm ba biện pháp (độ khớp với bạn đặt cạnh số, bài không lỗi hiện "Chưa đo được" thay cho số, chú thích nói rõ con số chưa đo với nhãn của bạn). Nếu không, nên ẩn số % cho tới khi có đủ nhãn. **Đã quyết 27/11/2026: hiện số % cả cho bài không có lỗi** (xem §5.8b mục 1).
 
 ## 11. Quyết định của người viết (có thể đổi)
 
@@ -363,7 +363,7 @@ Chỉ đạt (1) là công cụ tiết kiệm thời gian. Chỉ đạt (3) mà 
 - Cờ nguồn: `detail` của `injection_suspected` mang đúng các nguồn khớp; hồ sơ cũ không có nguồn → `detail` như hôm nay.
 - E1 (API): `ruleDescription`, `predicate`, `toolCallIds` của lăng kính và `confidenceTerms` đúng; trung bình có trọng số của `confidenceTerms` khớp `confidence` đã lưu trên ca không có giới hạn khác (ca HS2410018: 0,714). **Mù:** bài `audit_pending` không mang bất kỳ trường mới nào có nội dung.
 - E1 (giao diện): thẻ lỗi hiện luật, điều kiện bằng lời theo từng loại `predicate`, ca test không đạt trước, lời gọi bằng chứng có neo tới "Đường điều tra"; lỗi không bằng chứng hiện câu nói thẳng; lăng kính không lý do hiện "không kèm lý do"; banner hiện bảng đóng góp.
-- E1 (mức chắc chắn): `agreement` đếm đúng từ lần bật lại gần nhất; bài không lỗi không hiện số % mà hiện "Chưa đo được", ô thanh viền đứt và cảnh báo, và không hiện chip "Đạt ngưỡng" (kể cả khi giá trị nội bộ là 1,0); chip theo ba mức (đạt / vừa đủ / chưa đạt) khớp với so sánh θ có dung sai; hero hiện "chưa có bài kiểm tra ngẫu nhiên nào" khi chưa có nhãn.
+- E1 (mức chắc chắn): `agreement` đếm đúng từ lần bật lại gần nhất; bài không lỗi hiện số %, vạch ngưỡng và chip theo θ như mọi bài, kèm dòng nói số đến từ mức kiểm tra bài (quyết định 27/11/2026); bài đã tạm dừng hoặc chưa có confidence hiện "Chưa đo được"; chip theo ba mức (đạt / vừa đủ / chưa đạt) khớp với so sánh θ có dung sai; hero hiện "chưa có bài kiểm tra ngẫu nhiên nào" khi chưa có nhãn.
 - E1 (gói test): `testBundle.groups[].rules` đúng theo `predicate.group`; ca không đạt thuộc nhóm không có quy tắc nào vào `uncoveredFailingCases`; quy tắc dùng nhóm không có trong gói vào `unmeasuredRules`; gói chạy dở có ca `not_run` và giao diện nói "chưa chạy ≠ đạt"; `testBundle` rỗng với bài `audit_pending`.
 - E2: `quote` có trong file → `verified = true`; không có → `false` và vẫn lưu; thiếu `evidence`/`reason` → vẫn là phản hồi hợp lệ; điểm, cờ và quyết định không đổi khi có hay không có dẫn chứng.
 - Mọi test đổi kỳ vọng được ghi rõ là thay đổi chính sách (không phải sửa để xanh).

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTestBundles } from '@/hooks/useTestBundle';
 import { useTestBundleDetail } from '@/hooks/useTestBundleDetail';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const when = (iso: string) => new Date(iso).toLocaleString('vi-VN');
 
@@ -62,30 +63,28 @@ export function TestBundleReview({
           <p className="text-small text-muted-foreground">Gói đang dùng không có ca nào.</p>
         )}
         {pinnedBundleId && detail.data && detail.data.cases.length > 0 && (
-          <div className="overflow-x-auto scroll-edges">
-            <table className="w-full min-w-[24rem] text-left text-small">
-              <caption className="sr-only">Bộ ca của gói đang dùng</caption>
-              <thead>
-                <tr className="text-caption text-muted-foreground">
-                  <th scope="col" className="py-1 pr-2">Nhóm</th>
-                  <th scope="col" className="py-1 pr-2">Input</th>
-                  <th scope="col" className="py-1 pr-2">Output mong đợi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detail.data.cases.map((c) => (
-                  <tr key={c.caseKey}>
-                    <td className={`break-words py-1 pr-2 align-top ${c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}`}>{c.group}</td>
-                    <td className={`break-all py-1 pr-2 align-top font-mono text-caption ${c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}`}>{c.input}</td>
-                    <td className="py-1 pr-2 align-top">
-                      <span className={`break-all font-mono text-caption ${c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}`}>{c.expectedOutput}</span>
-                      {c.autoDroppedReason ? <span className="mt-1 block text-caption text-muted-foreground">Đã bỏ: {c.autoDroppedReason}</span> : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table className="w-full min-w-[24rem] text-left text-small">
+            <caption className="sr-only">Bộ ca của gói đang dùng</caption>
+            <TableHeader>
+              <TableRow className="text-caption text-muted-foreground">
+                <TableHead scope="col" className="py-1 pr-2">Nhóm</TableHead>
+                <TableHead scope="col" className="py-1 pr-2">Input</TableHead>
+                <TableHead scope="col" className="py-1 pr-2">Output mong đợi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {detail.data.cases.map((c) => (
+                <TableRow key={c.caseKey}>
+                  <TableCell className={`break-words py-1 pr-2 align-top ${c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}`}>{c.group}</TableCell>
+                  <TableCell className={`break-all py-1 pr-2 align-top font-mono text-caption ${c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}`}>{c.input}</TableCell>
+                  <TableCell className="py-1 pr-2 align-top">
+                    <span className={`break-all font-mono text-caption ${c.autoDroppedReason ? 'text-muted-foreground line-through' : ''}`}>{c.expectedOutput}</span>
+                    {c.autoDroppedReason ? <span className="mt-1 block text-caption text-muted-foreground">Đã bỏ: {c.autoDroppedReason}</span> : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>

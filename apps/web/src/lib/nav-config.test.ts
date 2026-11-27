@@ -57,9 +57,9 @@ describe('ADMIN_NAV', () => {
     expect(groups.map((g) => g.label)).toEqual(['Tổ chức học vụ', 'Cơ sở vật chất']);
   });
 
-  it('mục đơn top-level: Dashboard, Tiện ích IDE, Audit log', () => {
+  it('mục đơn top-level: Dashboard, Tiện ích IDE, Nhật ký thao tác', () => {
     const topSingles = ADMIN_NAV.filter((e) => !isNavGroup(e)).map((e) => e.label);
-    expect(topSingles).toEqual(['Dashboard', 'Tiện ích IDE', 'Audit log']);
+    expect(topSingles).toEqual(['Dashboard', 'Tiện ích IDE', 'Nhật ký thao tác']);
   });
 
   it('nhãn Giảng viên trỏ /admin/accounts; không còn "Quản lý tài khoản"', () => {
