@@ -1,5 +1,5 @@
 import { ShieldAlert } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogoutButton } from '@/components/layout/logout-button';
 
@@ -23,7 +23,7 @@ export default function UnassignedRolePage() {
           <span className="icon-chip h-10 w-10 bg-warning-subtle text-warning-strong">
             <ShieldAlert className="h-5 w-5" aria-hidden="true" />
           </span>
-          <CardTitle className="text-h2">Tài khoản chưa được gán vai trò</CardTitle>
+          <h1 className="text-h2 leading-none">Tài khoản chưa được gán vai trò</h1>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           <p className="text-body text-muted-foreground">

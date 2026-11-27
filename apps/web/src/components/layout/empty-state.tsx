@@ -6,6 +6,8 @@ interface EmptyStateProps {
   icon: LucideIcon;
   title: string;
   description: string;
+  /** Element for the title. Use 'h1' when this empty state IS the whole page (no PageHeader above it). */
+  titleAs?: 'p' | 'h1' | 'h2' | 'h3';
   /** A way out. An empty screen with nothing to press is a dead end -
    *  omit this only when there genuinely is no next step. */
   action?: ReactNode;
@@ -32,6 +34,7 @@ export function EmptyState({
   title,
   description,
   action,
+  titleAs: Title = 'p',
   tone = 'accent',
   className,
 }: EmptyStateProps) {
@@ -43,7 +46,7 @@ export function EmptyState({
         <Icon className="h-7 w-7" aria-hidden="true" />
       </span>
       <div className="flex flex-col gap-2">
-        <p className="text-h3 text-foreground">{title}</p>
+        <Title className="text-h3 text-foreground">{title}</Title>
         <p className="mx-auto max-w-md text-body text-muted-foreground">{description}</p>
       </div>
       {action}

@@ -38,6 +38,7 @@ function ExportContent() {
       <EmptyState
         icon={FileSpreadsheet}
         title="Chưa chọn phiên thi"
+        titleAs="h1"
         description="Xuất điểm được làm cho từng phiên đã chốt. Chọn một phiên từ màn Chấm điểm để bắt đầu."
         action={
           <Button asChild variant="outline">

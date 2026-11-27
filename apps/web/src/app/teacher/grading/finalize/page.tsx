@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ClipboardCheck } from 'lucide-react';
 import { EmptyState } from '@/components/layout/empty-state';
+import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,6 +38,7 @@ function FinalizeContent() {
       <EmptyState
         icon={ClipboardCheck}
         title="Chưa chọn phiên thi"
+        titleAs="h1"
         description="Chốt điểm được làm cho từng phiên. Chọn một phiên từ màn Chấm điểm để bắt đầu."
         action={
           <Button asChild variant="outline">
@@ -70,7 +72,10 @@ function FinalizeContent() {
         <span aria-hidden="true">›</span>
         <span>{session.name}</span>
       </nav>
-      <h1 className="text-h1">Chốt điểm phiên</h1>
+      <PageHeader
+        title="Chốt điểm phiên"
+        description="Công bố điểm chính thức của cả phiên. Chốt không ghi file nào; xuất điểm ra sổ điểm chỉ mở sau khi chốt."
+      />
 
       {results.isError ? (
         <Alert variant="destructive">
