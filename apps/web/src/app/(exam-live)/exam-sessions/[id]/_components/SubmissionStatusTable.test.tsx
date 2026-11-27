@@ -352,7 +352,7 @@ describe('SubmissionStatusTable - gradingByMssv', () => {
     expect(screen.getByText('Điểm AI: 8.5')).toBeInTheDocument();
     const button = screen.getByRole('button', { name: /Chấm lại/ });
     expect(button).toBeDisabled();
-    expect(screen.getByText('Có khi module chấm điểm hoàn thiện')).toBeInTheDocument();
+    expect(screen.getByText('Chưa có điểm')).toBeInTheDocument();
   });
 
   // Review round 1 (Important): every test above uses exactly ONE student,

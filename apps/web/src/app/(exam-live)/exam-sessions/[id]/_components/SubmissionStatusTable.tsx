@@ -549,7 +549,7 @@ export function SubmissionStatusTable({
                         Điểm AI: {grade.score ?? '-'}
                       </p>
                       <p className="text-caption text-muted-foreground">
-                        Có khi module chấm điểm hoàn thiện
+                        Chưa có điểm
                       </p>
                     </div>
                     {/* Disabled kèm lý do nhìn thấy được, theo quy ước sẵn có

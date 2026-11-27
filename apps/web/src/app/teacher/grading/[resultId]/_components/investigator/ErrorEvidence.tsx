@@ -23,7 +23,7 @@ const CASE_STATUS_TEXT: Record<string, string> = {
   pass: 'Đạt',
   fail: 'Không đạt',
   timeout: 'Hết giờ',
-  ran: 'Chưa có đáp án để đối chiếu',
+  ran: 'Chưa có đáp án để so sánh',
 };
 
 const callNumber = (id: string) => id.replace('tc-', '');
@@ -168,10 +168,10 @@ function CodeEvidence({ item }: { item: ErrorEvidenceItem }) {
         </Button>
       )}
       {item.verified ? (
-        <p className="text-caption text-success-strong">Đã đối chiếu: đoạn này đúng là có trong bài.</p>
+        <p className="text-caption text-success-strong">Đã kiểm tra: đoạn này đúng là có trong bài.</p>
       ) : (
         <p className="text-caption text-warning-strong">
-          Chưa đối chiếu được: không tìm thấy đoạn này trong bài, nên không dùng làm bằng chứng.
+          Không tìm thấy đoạn này trong bài, nên không dùng làm bằng chứng.
         </p>
       )}
     </div>

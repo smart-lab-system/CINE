@@ -101,8 +101,8 @@ export const TEACHER_NAV: NavEntry[] = [
     label: 'Rubric',
     icon: ListChecks,
     children: [
-      { label: 'Question Agnostic', href: '/teacher/rubrics/qa', icon: Layers },
-      { label: 'Question Specific', href: '/teacher/rubrics', icon: BookOpen },
+      { label: 'Rubric chung', href: '/teacher/rubrics/qa', icon: Layers },
+      { label: 'Rubric theo câu hỏi', href: '/teacher/rubrics', icon: BookOpen },
       { label: 'Bảng lỗi', href: '/teacher/rules', icon: ScrollText },
     ],
   },

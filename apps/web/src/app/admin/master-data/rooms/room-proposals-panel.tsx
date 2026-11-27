@@ -159,7 +159,7 @@ export function RoomProposalsPanel() {
         <div>
           <h2 className="text-base font-semibold">Đề xuất từ lab</h2>
           <p className="text-sm text-muted-foreground">
-            Giảng viên gửi từ Teacher Hub - kèm máy GV và máy SV trong registry.
+            Giảng viên gửi đề xuất từ tài khoản của họ, kèm máy của giảng viên và máy của sinh viên.
           </p>
         </div>
         <div className="flex gap-2">

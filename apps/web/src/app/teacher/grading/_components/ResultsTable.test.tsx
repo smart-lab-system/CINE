@@ -39,7 +39,7 @@ describe('ResultsTable (spec §3.3)', () => {
     render(<ResultsTable {...props()} />);
     expect(within(rows()[0]).getByText('Cần bạn xem')).toBeInTheDocument();
     expect(within(rows()[1]).getByText('Không chấm được')).toBeInTheDocument();
-    expect(within(rows()[2]).getByText('Tự quyết')).toBeInTheDocument();
+    expect(within(rows()[2]).getByText('AI tự chốt')).toBeInTheDocument();
   });
 
   it('shows "-" and "chưa có điểm" for a result without a score, never 0; provisional scores are tagged', () => {
@@ -99,11 +99,11 @@ describe('ResultsTable (spec §3.3)', () => {
     expect(screen.getByText('Thi bù - N09')).toBeInTheDocument();
   });
 
-  it('labels an essay, and never calls a legacy auto-approved essay "Tự quyết" (T-UI-20)', () => {
+  it('labels an essay, and never calls a legacy auto-approved essay "AI tự chốt" (T-UI-20)', () => {
     render(<ResultsTable {...props({ results: [result({ pipeline: 'one_shot', status: 'auto_approved' })] })} />);
     expect(screen.getByText('Bài tự luận')).toBeInTheDocument();
-    expect(screen.queryByText('Tự quyết')).not.toBeInTheDocument();
-    expect(screen.getByText('Tự duyệt theo chính sách cũ')).toBeInTheDocument();
+    expect(screen.queryByText('AI tự chốt')).not.toBeInTheDocument();
+    expect(screen.getByText('Đã chốt theo quy tắc cũ')).toBeInTheDocument();
   });
 
   it('an essay that needs review says why without any dossier', () => {

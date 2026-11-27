@@ -94,8 +94,8 @@ describe('ErrorEvidence', () => {
     const bad: ErrorEvidenceItem = { file: 'main.cpp', startLine: 9, endLine: 9, quote: 'x', verified: false };
     render(<ErrorEvidence error={error()} toolCalls={[]} verdicts={noVerdicts} note={null} evidence={[ok, bad]} />);
     expect(screen.getByText('main.cpp:3')).toBeInTheDocument();
-    expect(screen.getByText(/Đã đối chiếu: đoạn này đúng là có trong bài/)).toBeInTheDocument();
-    expect(screen.getByText(/Chưa đối chiếu được: không tìm thấy đoạn này trong bài/)).toBeInTheDocument();
+    expect(screen.getByText(/Đã kiểm tra: đoạn này đúng là có trong bài/)).toBeInTheDocument();
+    expect(screen.getByText(/Không tìm thấy đoạn này trong bài, nên không dùng làm bằng chứng/)).toBeInTheDocument();
   });
 
   it('đoạn dài: chỉ hiện đầu và cuối, và "Hiện cả đoạn" mở ra toàn bộ', () => {

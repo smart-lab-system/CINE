@@ -188,7 +188,7 @@ describe('PreparePanel - start button (spec §3.7)', () => {
   it('reads the result of starting back, and shows a refusal verbatim', () => {
     h.startState = { isPending: false, isError: false, isSuccess: true, error: null, data: { queued: 32, alreadyGraded: 0, rubricVersion: 2 } };
     const { unmount } = renderPanel();
-    expect(screen.getByRole('status')).toHaveTextContent('Đã xếp 32 bài vào hàng đợi chấm (rubric phiên bản 2)');
+    expect(screen.getByRole('status')).toHaveTextContent('Đã xếp 32 bài vào danh sách chờ chấm (rubric phiên bản 2)');
     unmount();
     h.startState = { isPending: false, isError: true, isSuccess: false, error: new Error('Phiên này có bài chấm bằng đường điều tra nhưng chưa ghim gói test'), data: undefined };
     renderPanel();

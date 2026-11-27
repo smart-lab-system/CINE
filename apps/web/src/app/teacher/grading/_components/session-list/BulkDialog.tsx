@@ -108,7 +108,7 @@ export function BulkDialog({ request, onClose, onFinished }: { request: BulkRequ
           <DialogTitle>{title}</DialogTitle>
           {phase === 'confirm' && kind === 'start' && (
             <DialogDescription>
-              Hệ thống sẽ xếp <b>{totalPapers} bài</b> của <b>{rows.length} phiên</b> vào hàng đợi chấm. Bạn vẫn xem và sửa được từng kết quả sau đó.
+              Hệ thống sẽ xếp <b>{totalPapers} bài</b> của <b>{rows.length} phiên</b> vào danh sách chờ chấm. Bạn vẫn xem và sửa được từng kết quả sau đó.
             </DialogDescription>
           )}
           {phase === 'confirm' && kind === 'rubric' && (

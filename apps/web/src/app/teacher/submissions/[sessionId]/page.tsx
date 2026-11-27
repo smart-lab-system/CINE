@@ -67,7 +67,7 @@ function SubmissionSessionDetailContent() {
       onSuccess: (result) => {
         toast.success(
           result.requeued > 0
-            ? `Đã xếp lại ${result.requeued} bài vào hàng đợi kiểm file nén.`
+            ? `Đã xếp lại ${result.requeued} bài vào danh sách chờ kiểm tra file nén.`
             : 'Không có bài nào cần kiểm lại.',
         );
       },

@@ -108,7 +108,7 @@ describe('gradingResultsToCsv', () => {
   it.each([
     ['flagged_for_review', null, 'Cần bạn xem'],
     ['flagged_for_review', 'file nén không đọc được', 'Không chấm được'],
-    ['auto_approved', null, 'Tự quyết'],
+    ['auto_approved', null, 'AI tự chốt'],
     ['audit_pending', null, 'Kiểm mẫu'],
     ['teacher_reviewed', null, 'Đã duyệt'],
     ['finalized', null, 'Đã chốt'],

@@ -84,7 +84,7 @@ export default function QsRubricDetailPage() {
         </Button>
         <Alert>
           <AlertDescription>
-            Rubric này không phải Question Specific. Xem cấu trúc QA ở Bảng lỗi.
+            Rubric này không phải rubric theo câu hỏi. Xem cấu trúc chung ở Bảng lỗi.
           </AlertDescription>
         </Alert>
       </div>
@@ -107,7 +107,7 @@ export default function QsRubricDetailPage() {
         </Button>
         <PageHeader
           title={rubric.name}
-          description="Chi tiết rubric Question Specific - thông tin và checklist cách giải."
+          description="Chi tiết rubric theo câu hỏi - thông tin và checklist cách giải."
         />
       </div>
 

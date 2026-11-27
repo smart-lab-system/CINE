@@ -80,12 +80,12 @@ export function UngradableView({
       <section className="rounded-lg border border-border bg-surface p-4">
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="section-label">Những gì đã chạy</h2>
-          <span className="text-caption text-muted-foreground">{touchedCalls} lời gọi</span>
+          <span className="text-caption text-muted-foreground">{touchedCalls} lượt kiểm tra</span>
         </div>
         {investigation ? (
           <InvestigationTrail investigation={investigation} />
         ) : (
-          <p className="text-small text-muted-foreground">Chưa có lời gọi nào được ghi lại.</p>
+          <p className="text-small text-muted-foreground">Chưa có lượt kiểm tra nào được ghi lại.</p>
         )}
       </section>
     </div>

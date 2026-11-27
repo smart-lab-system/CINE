@@ -183,7 +183,7 @@ export function PreparePanel({
             {start.isSuccess && (
               <Alert variant="success" role="status">
                 <AlertDescription>
-                  Đã xếp {start.data.queued} bài vào hàng đợi chấm (rubric phiên bản {start.data.rubricVersion})
+                  Đã xếp {start.data.queued} bài vào danh sách chờ chấm (rubric phiên bản {start.data.rubricVersion})
                   {start.data.alreadyGraded > 0
                     ? `; bỏ qua ${start.data.alreadyGraded} bài đã chấm trước đó.`
                     : '.'}

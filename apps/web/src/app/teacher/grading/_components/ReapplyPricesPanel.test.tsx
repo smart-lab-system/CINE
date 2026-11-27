@@ -58,7 +58,7 @@ describe('ReapplyPricesPanel', () => {
 
   it('cannot apply before there is a preview', () => {
     render(<ReapplyPricesPanel sessionId="s1" />);
-    expect(screen.getByRole('button', { name: /^Áp giá mới/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cập nhật mức trừ/ })).toBeDisabled();
   });
 
   it('shows a loading state while the preview is computed', () => {
@@ -96,22 +96,22 @@ describe('ReapplyPricesPanel', () => {
 
     it('the apply button carries the number of results that change', () => {
       render(<ReapplyPricesPanel sessionId="s1" />);
-      expect(screen.getByRole('button', { name: 'Áp giá mới cho 2 bài' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Cập nhật mức trừ cho 2 bài' })).toBeEnabled();
     });
 
     it('applying asks first, says every changed result gets an audit-log line, and sends nothing until confirmed', () => {
       render(<ReapplyPricesPanel sessionId="s1" />);
-      fireEvent.click(screen.getByRole('button', { name: 'Áp giá mới cho 2 bài' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cập nhật mức trừ cho 2 bài' }));
       expect(screen.getByRole('dialog')).toHaveTextContent('2 bài');
       expect(screen.getByRole('dialog')).toHaveTextContent('một dòng nhật ký');
       expect(h.applyMutate).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByRole('button', { name: 'Áp giá mới' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cập nhật mức trừ' }));
       expect(h.applyMutate).toHaveBeenCalledTimes(1);
     });
 
     it('cancelling sends nothing', () => {
       render(<ReapplyPricesPanel sessionId="s1" />);
-      fireEvent.click(screen.getByRole('button', { name: 'Áp giá mới cho 2 bài' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cập nhật mức trừ cho 2 bài' }));
       fireEvent.click(screen.getByRole('button', { name: 'Huỷ' }));
       expect(h.applyMutate).not.toHaveBeenCalled();
     });
@@ -119,8 +119,8 @@ describe('ReapplyPricesPanel', () => {
     it('after a successful apply: says how many changed and drops the now-stale preview', () => {
       h.applyMutate.mockImplementation((_v: void, opts: { onSuccess: (d: { changed: number }) => void }) => opts.onSuccess({ changed: 2 }));
       render(<ReapplyPricesPanel sessionId="s1" />);
-      fireEvent.click(screen.getByRole('button', { name: 'Áp giá mới cho 2 bài' }));
-      fireEvent.click(screen.getByRole('button', { name: 'Áp giá mới' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cập nhật mức trừ cho 2 bài' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cập nhật mức trừ' }));
       expect(screen.getByRole('status')).toHaveTextContent('Đã áp giá mới cho 2 bài');
       expect(h.previewReset).toHaveBeenCalled();
     });
@@ -128,7 +128,7 @@ describe('ReapplyPricesPanel', () => {
     it('a refusal (409) shows the server message verbatim in the dialog', () => {
       h.apply = { isPending: false, isError: true, error: new Error('2 bài dính luật lúc chốt có giá mà nay chưa có giá') };
       render(<ReapplyPricesPanel sessionId="s1" />);
-      fireEvent.click(screen.getByRole('button', { name: 'Áp giá mới cho 2 bài' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cập nhật mức trừ cho 2 bài' }));
       expect(within(screen.getByRole('dialog')).getByRole('alert')).toHaveTextContent('nay chưa có giá');
     });
   });
@@ -143,7 +143,7 @@ describe('ReapplyPricesPanel', () => {
       expect(screen.getByText(/1 bài không áp được/)).toBeInTheDocument();
       expect(screen.getByText('rong_mang')).toHaveClass('font-mono');
       expect(screen.getByRole('link', { name: 'Đặt giá ở Bảng lỗi' })).toHaveAttribute('href', '/teacher/rules');
-      expect(screen.getByRole('button', { name: /^Áp giá mới/ })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /^Cập nhật mức trừ/ })).toBeDisabled();
     });
 
     it('mang ?rubric= khi biết rubric', () => {
@@ -160,7 +160,7 @@ describe('ReapplyPricesPanel', () => {
     h.preview = { ...h.preview, data: plan({ changes: [], skipped: [] }) };
     render(<ReapplyPricesPanel sessionId="s1" />);
     expect(screen.getByText('Giá hiện hành không làm đổi điểm bài nào.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Áp giá mới/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^Cập nhật mức trừ/ })).toBeDisabled();
   });
 
   it('shows the preview error verbatim (e.g. the session is not fully finalised)', () => {

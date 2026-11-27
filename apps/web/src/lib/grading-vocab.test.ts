@@ -106,7 +106,7 @@ describe('toolCallStatusLabel', () => {
   it('nói bằng chữ cả bốn trạng thái của backend (ToolCallStatus), không chỉ bằng biểu tượng', () => {
     expect(toolCallStatusLabel('ok')).toBe('Xong');
     expect(toolCallStatusLabel('error')).toBe('Lỗi');
-    expect(toolCallStatusLabel('blocked_duplicate')).toBe('Bị chặn - trùng lời gọi trước');
+    expect(toolCallStatusLabel('blocked_duplicate')).toBe('Bị chặn - trùng lượt kiểm tra trước');
     expect(toolCallStatusLabel('unavailable')).toBe('Không dùng được');
   });
   it('trạng thái lạ vẫn hiện nguyên mã, không bỏ trống', () => {

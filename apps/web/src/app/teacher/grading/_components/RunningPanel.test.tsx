@@ -133,8 +133,8 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
     it('says how many are stuck and offers to continue exactly those', () => {
       const onRegradeStuck = vi.fn();
       render(<RunningPanel {...stuck()} onRegradeStuck={onRegradeStuck} />);
-      expect(screen.getByRole('alert')).toHaveTextContent('3 bài không còn ai chấm');
-      fireEvent.click(screen.getByRole('button', { name: 'Chấm tiếp 3 bài treo' }));
+      expect(screen.getByRole('alert')).toHaveTextContent('3 bài đang bị kẹt');
+      fireEvent.click(screen.getByRole('button', { name: 'Chấm lại 3 bài bị kẹt' }));
       expect(onRegradeStuck).toHaveBeenCalledTimes(1);
     });
 
@@ -142,17 +142,17 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
       const { rerender } = render(<RunningPanel {...stuck()} lastReadAt={Date.now()} />);
       act(() => void vi.advanceTimersByTime(120_000));
       rerender(<RunningPanel {...stuck()} lastReadAt={Date.now()} />);
-      expect(screen.getByRole('alert')).toHaveTextContent('Tiến độ đã đứng yên 2 phút');
+      expect(screen.getByRole('alert')).toHaveTextContent('Không có bài nào hoàn thành trong 2 phút');
     });
 
     it('is NOT stuck while the queue still has live work', () => {
       render(<RunningPanel {...props({ progress: progress({ queue: { waiting: 0, active: 1, failed: 0 } }) })} />);
-      expect(screen.queryByText(/không còn ai chấm/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/đang bị kẹt/)).not.toBeInTheDocument();
     });
 
     it('is NOT stuck while jobs are waiting their turn', () => {
       render(<RunningPanel {...props({ progress: progress({ queue: { waiting: 5, active: 0, failed: 0 } }) })} />);
-      expect(screen.queryByText(/không còn ai chấm/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/đang bị kẹt/)).not.toBeInTheDocument();
     });
 
     it('reads the outcome back as requeued out of stuck', () => {
@@ -167,7 +167,7 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
 
     it('offers nothing while the machine is offline', () => {
       render(<RunningPanel {...stuck()} online={false} />);
-      expect(screen.queryByRole('button', { name: /Chấm tiếp/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Chấm lại/ })).not.toBeInTheDocument();
     });
   });
 });

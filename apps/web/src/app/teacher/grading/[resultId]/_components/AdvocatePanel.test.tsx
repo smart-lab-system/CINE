@@ -44,7 +44,7 @@ describe('AdvocatePanel', () => {
     );
     // null = CHƯA đối chiếu. Gộp nó với [] là sai ở chỗ nguy hiểm nhất: lượt
     // phản biện đang lập luận để NÂNG điểm.
-    expect(screen.getByText(/chưa đối chiếu/i)).toBeInTheDocument();
+    expect(screen.getByText(/chưa được kiểm tra lại/i)).toBeInTheDocument();
     expect(screen.queryByText(/tất cả đều có trong bài làm/i)).not.toBeInTheDocument();
   });
 
@@ -65,8 +65,8 @@ describe('AdvocatePanel', () => {
   it('opinion null + chưa có đề bài: nói VÌ SAO, không hiện khối rỗng', () => {
     panel({ opinion: null, hasQuestion: false });
 
-    expect(screen.getByText(/chưa nạp đề bài nên lượt phản biện không chạy/i)).toBeInTheDocument();
-    expect(screen.getByText(/không có ai lên tiếng/i)).toBeInTheDocument();
+    expect(screen.getByText(/chưa có đề bài nên phần phản biện không chạy/i)).toBeInTheDocument();
+    expect(screen.queryByText(/không có ai lên tiếng/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 

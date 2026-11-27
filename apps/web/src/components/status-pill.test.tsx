@@ -13,9 +13,9 @@ describe('StatusPill', () => {
     expect(screen.getByText('Không chấm được')).toBeInTheDocument();
     expect(screen.queryByText(/Cần bạn xem/i)).not.toBeInTheDocument();
   });
-  it('shows "Tự quyết" for auto_approved', () => {
+  it('shows "AI tự chốt" for auto_approved', () => {
     render(<StatusPill status="auto_approved" ungradableReason={null} />);
-    expect(screen.getByText('Tự quyết')).toBeInTheDocument();
+    expect(screen.getByText('AI tự chốt')).toBeInTheDocument();
   });
   it('shows "Kiểm mẫu" for audit_pending (Review Focus #3 - reachable even though nothing produces it yet)', () => {
     render(<StatusPill status="audit_pending" ungradableReason={null} />);
@@ -28,14 +28,14 @@ describe('StatusPill', () => {
 });
 
 describe('StatusPill - essays never carry a machine-decision label (spec §3.11, T-UI-20)', () => {
-  it('a legacy auto-approved essay is "tự duyệt theo chính sách cũ", not "Tự quyết"', () => {
+  it('a legacy auto-approved essay is "tự duyệt theo chính sách cũ", not "AI tự chốt"', () => {
     render(<StatusPill status="auto_approved" ungradableReason={null} pipeline="one_shot" />);
-    expect(screen.getByText('Tự duyệt theo chính sách cũ')).toBeInTheDocument();
-    expect(screen.queryByText('Tự quyết')).not.toBeInTheDocument();
+    expect(screen.getByText('Đã chốt theo quy tắc cũ')).toBeInTheDocument();
+    expect(screen.queryByText('AI tự chốt')).not.toBeInTheDocument();
   });
-  it('a code result keeps "Tự quyết"', () => {
+  it('a code result keeps "AI tự chốt"', () => {
     render(<StatusPill status="auto_approved" ungradableReason={null} pipeline="investigator" />);
-    expect(screen.getByText('Tự quyết')).toBeInTheDocument();
+    expect(screen.getByText('AI tự chốt')).toBeInTheDocument();
   });
   it('the other states do not depend on the pipeline', () => {
     render(<StatusPill status="flagged_for_review" ungradableReason={null} pipeline="one_shot" />);

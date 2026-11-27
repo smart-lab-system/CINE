@@ -19,7 +19,7 @@ export const STATE_LABEL: Record<SessionState, string> = {
   audit: 'Kiểm mẫu',
   ungradable: 'Không chấm được',
   grading: 'Đang chấm',
-  auto: 'Tự quyết',
+  auto: 'AI tự chốt',
   reviewed: 'Đã duyệt',
   finalised: 'Đã chốt',
 };

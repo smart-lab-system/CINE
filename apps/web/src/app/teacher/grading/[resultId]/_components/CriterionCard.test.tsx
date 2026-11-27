@@ -57,7 +57,7 @@ describe('CriterionCard', () => {
     rerenderWith(null);
     // null = chấm trước khi hệ thống ghi lại phép đối chiếu. Gộp vào 'ok'
     // làm mọi bài cũ trông như đã được kiểm.
-    expect(screen.getByText(/chưa đối chiếu/i)).toBeInTheDocument();
+    expect(screen.getByText(/chưa kiểm tra lại/i)).toBeInTheDocument();
     expect(screen.queryByText(/khớp từng chữ/i)).not.toBeInTheDocument();
 
     rerenderWith('unverified');
@@ -74,7 +74,7 @@ describe('CriterionCard', () => {
     // `confidence` do guard tính bằng đối chiếu; provider chỉ được đặt trần.
     // Vẽ nó như model tự chấm là nói sai bản chất kiến trúc.
     expect(screen.getByRole('meter', { name: /độ tin cậy/i })).toBeInTheDocument();
-    expect(screen.getByText(/đối chiếu trích dẫn với bài làm/i)).toBeInTheDocument();
+    expect(screen.getByText(/kiểm tra trích dẫn có trong bài làm/i)).toBeInTheDocument();
     expect(screen.getByText(/không phải AI tự chấm/i)).toBeInTheDocument();
   });
 

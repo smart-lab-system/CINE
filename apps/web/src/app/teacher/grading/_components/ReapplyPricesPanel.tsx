@@ -22,7 +22,7 @@ import { RULES_PATH } from '@/lib/rules-links';
 const deduction = (d: string | null) => (d === null ? 'chưa giá' : formatDeductionString(d));
 
 /**
- * "Áp giá mới cho phiên đã chốt" (spec §3.1, §3.10, T-UI-21).
+ * "Cập nhật mức trừ cho phiên đã chốt" (spec §3.1, §3.10, T-UI-21).
  *
  * Đổi giá ở Bảng lỗi KHÔNG tự đổi điểm phiên đã chốt - bảng giá đã ghim lúc chốt. Muốn áp giá hiện hành phải làm
  * một thao tác riêng: xem trước (bài nào đổi điểm, luật nào đổi mức trừ), rồi xác nhận, và mỗi bài đổi điểm có một
@@ -41,9 +41,9 @@ export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sess
   const canApply = plan !== undefined && changes.length > 0 && skipped.length === 0 && !apply.isPending;
 
   return (
-    <section aria-label="Áp giá mới cho phiên đã chốt" className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
+    <section aria-label="Cập nhật mức trừ cho phiên đã chốt" className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-4">
       <div className="flex flex-col gap-1">
-        <h2 className="text-h3">Áp giá mới cho phiên đã chốt</h2>
+        <h2 className="text-h3">Cập nhật mức trừ cho phiên đã chốt</h2>
         <p className="text-small text-muted-foreground">
           Đổi giá ở Bảng lỗi không tự đổi điểm phiên đã chốt - bảng giá đã ghim lúc chốt. Muốn áp giá hiện hành, xem
           trước rồi áp: mỗi bài đổi điểm có một dòng nhật ký.
@@ -62,7 +62,7 @@ export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sess
         </Button>
         {preview.isPending && <span className="text-small text-muted-foreground">Đang tính…</span>}
         <Button type="button" disabled={!canApply} onClick={() => setConfirming(true)}>
-          {changes.length > 0 ? `Áp giá mới cho ${changes.length} bài` : 'Áp giá mới cho phiên đã chốt'}
+          {changes.length > 0 ? `Cập nhật mức trừ cho ${changes.length} bài` : 'Cập nhật mức trừ cho phiên đã chốt'}
         </Button>
       </div>
 
@@ -154,7 +154,7 @@ export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sess
       <Dialog open={confirming} onOpenChange={(open) => !open && setConfirming(false)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Áp giá mới cho {changes.length} bài?</DialogTitle>
+            <DialogTitle>Cập nhật mức trừ cho {changes.length} bài?</DialogTitle>
             <DialogDescription>
               {changes.length} bài đã công bố sẽ đổi điểm theo bảng giá hiện hành. Mỗi bài đổi điểm có một dòng nhật ký
               mang tên bạn: điểm cũ, điểm mới, luật và mức trừ đã đổi.
@@ -182,7 +182,7 @@ export function ReapplyPricesPanel({ sessionId, rulesHref = RULES_PATH }: { sess
                 })
               }
             >
-              Áp giá mới
+              Cập nhật mức trừ
             </Button>
           </DialogFooter>
         </DialogContent>

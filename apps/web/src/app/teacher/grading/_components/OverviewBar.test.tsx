@@ -13,7 +13,7 @@ describe('OverviewBar (spec §3.3 - a proportional bar and five numbers with ico
     render(<OverviewBar counts={counts({ auto: 5, needsYou: 2, ungradable: 1 })} />);
     const list = screen.getByRole('list', { name: 'Số bài theo trạng thái' });
     const text = (label: string) => within(list).getByText(label).closest('li')!;
-    expect(text('Tự quyết')).toHaveTextContent('5');
+    expect(text('AI tự chốt')).toHaveTextContent('5');
     expect(text('Kiểm mẫu')).toHaveTextContent('0');
     expect(text('Cần bạn xem')).toHaveTextContent('2');
     expect(text('Không chấm được')).toHaveTextContent('1');
@@ -32,7 +32,7 @@ describe('OverviewBar (spec §3.3 - a proportional bar and five numbers with ico
   it('the bar itself is described for a screen reader with every number (colour is never the only signal)', () => {
     render(<OverviewBar counts={counts({ auto: 5, needsYou: 2 })} />);
     const bar = screen.getByRole('img');
-    expect(bar).toHaveAttribute('aria-label', expect.stringContaining('5 Tự quyết'));
+    expect(bar).toHaveAttribute('aria-label', expect.stringContaining('5 AI tự chốt'));
     expect(bar).toHaveAttribute('aria-label', expect.stringContaining('2 Cần bạn xem'));
   });
 
