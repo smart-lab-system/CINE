@@ -10,13 +10,9 @@ import {
 } from '../schema';
 
 /**
- * This component had no test coverage of its own before this file - only
- * indirect exercise through the parent page. New coverage here is for the
- * WinRAR warning specifically (spec follow-up to the 2026-09-25
- * archive/RAR student-facing fix, apps/agent commit 18b8bd7): a teacher who
- * declares a `.rar` required file has no way to know, at declaration time,
- * that a student without WinRAR installed cannot produce one - the earlier
- * fix only reached the student's instructions sheet, not this form.
+ * Cảnh báo WinRAR trên form khai deliverable `.rar`: agent tự đóng gói lúc
+ * thu bài nên máy lab vẫn cần Rar.exe - GV phải biết lúc khai, không phải
+ * sau khi mở phiên.
  */
 function Harness() {
   const form = useForm<ReplaceRequiredDeliverablesFormValues>({

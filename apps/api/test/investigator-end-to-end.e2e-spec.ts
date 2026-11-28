@@ -132,6 +132,9 @@ describe('Đường điều tra chạy thật — từ tạo phiên qua API tớ
         rubricId: rubric.id,
         startTime: start.toISOString(),
         endTime: end.toISOString(),
+        startPeriod: 1,
+        endPeriod: 2,
+        durationMinutes: 90,
         requiredFilenames: [{ filename: 'bai1.cpp', deliverableType: 'code_project', language: 'cpp' }],
       });
     expect(created.status).toBe(201);

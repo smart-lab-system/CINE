@@ -55,7 +55,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     startTime.setUTCHours(startHour);
     const endTime = new Date(day);
     endTime.setUTCHours(endHour);
-    return { startTime: startTime.toISOString(), endTime: endTime.toISOString() };
+    return { startTime: startTime.toISOString(), endTime: endTime.toISOString(), startPeriod: 1, endPeriod: 2, durationMinutes: 90 };
   }
 
   function createSession(body: Record<string, unknown>, token: string = ownerToken) {
@@ -276,6 +276,9 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       endTime: new Date(Date.UTC(
         day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 12, 0,
       )).toISOString(),
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes: 90,
     });
 
     expect(second.status).toBe(201);
@@ -433,13 +436,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
 
     const { startTime, endTime } = windowAt(day, 9, 11);
     // Bypasses the service entirely. This is what proves the rule is a
-    // property of the data rather than of one code path — a future
+    // property of the data rather than of one code path - a future
     // reschedule endpoint gets the same protection for free.
     await expect(
       dataSource.query(
         // semester_name NOT NULL từ 2026-09-11 (§7.1.5). Phải cấp, nếu
         // không INSERT chết ở 23502 trước khi chạm ràng buộc GiST mà ca
-        // này sinh ra để kiểm — một test xanh-vì-sai-lý-do đảo ngược.
+        // này sinh ra để kiểm - một test xanh-vì-sai-lý-do đảo ngược.
         `INSERT INTO examcollect.exam_session
            (name, code, teacher_id, class_id, exam_type,
             start_time, end_time, submission_rule, status, semester_name,
@@ -486,6 +489,9 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       roomName: otherRoomName,
       startTime,
       endTime,
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes: 90,
     });
 
     expect(response.status).toBe(201);
@@ -501,6 +507,9 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       roomName: otherRoomName,
       startTime,
       endTime,
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes: 90,
     });
 
     expect(response.status).toBe(400);

@@ -15,6 +15,7 @@ import { assertSessionRouteAllowed } from './problem/session-route-guard';
 import { extractText } from './extract-text';
 import {
   extractModelAnswerZip,
+  isArchivePackageKind,
   isPdfFilename,
   packageKindFromFilename,
   type ModelAnswerFileText,
@@ -618,7 +619,7 @@ export class GradingReferenceService {
           row.modelAnswerPackageKind ?? packageKindFromFilename(filename);
         loaded.modelAnswerFilename = filename;
         loaded.modelAnswerPackageKind = kind;
-        if (kind === 'zip') {
+        if (isArchivePackageKind(kind)) {
           loaded.modelAnswerFiles = await extractModelAnswerZip(bytes);
         } else if (isPdfFilename(filename)) {
           loaded.modelAnswer = bytes;

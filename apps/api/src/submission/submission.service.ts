@@ -84,8 +84,8 @@ function renderSubmissionFilename(
   return renderFilename(pattern, {
     studentMssv,
     studentName,
-    roomName,
-    machineName: null,
+    seatLabel: '',
+    roomLabel: roomName,
   });
 }
 
@@ -537,9 +537,9 @@ export class SubmissionService {
    * `2026-09-21-archive-content-validation-design.md` §5.2.
    *
    * BẮT BUỘC chụp ở đây, TRONG cùng giao dịch với lượt `collected`, không
-   * render lại trong job archive-check: `identity.machineName` chỉ sống
+   * render lại trong job archive-check: `identity.seatLabel` chỉ sống
    * trong `client.data` của socket (xem `AgentSocketIdentity`), và job chạy
-   * sau khi socket có thể đã đóng từ lâu. Render với `null` sẽ cho ra
+   * sau khi socket có thể đã đóng từ lâu. Render với seat rỗng sẽ cho ra
    * `{SOMAY}` -> `'UNKNOWN'` và đánh trượt oan đúng nhóm em dùng token đó.
    *
    * Không phải deliverable nào cũng có entry — trả `false` khi không, để
@@ -573,8 +573,8 @@ export class SubmissionService {
     const context: FilenameContext = {
       studentMssv: identity.studentId,
       studentName: identity.fullName,
-      roomName,
-      machineName: identity.machineName,
+      seatLabel: identity.seatLabel,
+      roomLabel: roomName,
     };
     const expected = entries.map((entry) => renderFilename(entry.entryName, context));
 

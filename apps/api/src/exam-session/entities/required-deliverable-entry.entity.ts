@@ -12,7 +12,7 @@ import { RequiredDeliverableEntity } from './required-deliverable.entity';
  * same string that could disagree with it."
  *
  * `entry_name` là một MẪU, chịu đúng `FILENAME_TEMPLATE_REGEX` như tên file
- * bên ngoài — nên token `{MSSV} {TEN} {PHONG} {SOMAY}` dùng được, và luật
+ * bên ngoài — nên token `{MSSV} {HOTEN} {SOMAY}` dùng được, và luật
  * chống path traversal áp y hệt. Đặc biệt là ký tự `/` vẫn bị cấm: phép
  * khớp không nhìn đường dẫn (spec §3.2), nên khai đường dẫn là vô nghĩa, và
  * cấm ngay từ lúc khai thì giảng viên biết ngay thay vì tưởng mình đã khai

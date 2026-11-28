@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import {
+  EXAM_DURATION_OPTIONS,
+  MAX_SCHOOL_PERIOD,
+  MIN_SCHOOL_PERIOD,
+  scheduleFromPeriodsAndDuration,
+} from '@/lib/school-periods';
 
 /**
  * The form's validation rules, kept out of `page.tsx` on purpose.
@@ -13,12 +19,12 @@ import { z } from 'zod';
 
 // Must stay byte-for-byte identical to FILENAME_TEMPLATE_REGEX in
 // apps/api/src/exam-session/filename-template.ts. It is the old
-// SAFE_FILENAME_REGEX plus the four tokens the server fills per student -
+// SAFE_FILENAME_REGEX plus the tokens the server fills per student -
 // the same character class and the same `(?!.*\.\.)` lookahead, so a
 // pattern is held to exactly the path-traversal rules a literal name is. A
 // mismatch here means the form accepts something the server 400s on.
 const FILENAME_TEMPLATE_REGEX =
-  /^(?!.*\.\.)(?:[A-Za-z0-9_.-]|\{(?:MSSV|TEN|PHONG|SOMAY)\})+$/;
+  /^(?!.*\.\.)(?:[A-Za-z0-9_.-]|\{(?:MSSV|HOTEN|SOMAY)\})+$/;
 
 // Phải khớp ARCHIVE_EXTENSIONS/MAX_ENTRIES_PER_DELIVERABLE trong
 // apps/api/src/exam-session/dto/create-exam-session.dto.ts. Cùng cặp
@@ -86,7 +92,7 @@ const requiredFilenameItemSchema = z
       .min(1, 'Tên file không được để trống')
       .regex(
         FILENAME_TEMPLATE_REGEX,
-        'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+        'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {HOTEN} {SOMAY}',
       ),
     deliverableType: z.enum(['document', 'code_project', 'image']).default('document'),
     language: z.enum(['python', 'cpp', 'java']).optional(),
@@ -99,7 +105,7 @@ const requiredFilenameItemSchema = z
             .min(1, 'Tên file không được để trống')
             .regex(
               FILENAME_TEMPLATE_REGEX,
-              'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+              'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {HOTEN} {SOMAY}',
             ),
         }),
       )
@@ -220,12 +226,24 @@ export const createExamSessionSchema = z
       .optional()
       .or(z.literal('')),
     examType: z.enum(EXAM_TYPES, { message: 'Vui lòng chọn loại kỳ thi' }),
-    // Bound to <input type="datetime-local">, so this is the browser's
-    // "YYYY-MM-DDTHH:mm" local-time string, not ISO 8601 yet - converted to
-    // a real ISO string in onSubmit before it reaches the API (the backend's
-    // @IsISO8601() needs a full ISO string, e.g. with seconds + offset).
-    startTime: z.string().min(1, 'Vui lòng chọn thời gian bắt đầu'),
-    endTime: z.string().min(1, 'Vui lòng chọn thời gian kết thúc'),
+    /** `YYYY-MM-DD` từ <input type="date">. */
+    examDate: z.string().min(1, 'Vui lòng chọn ngày thi'),
+    startPeriod: z.coerce
+      .number({ message: 'Vui lòng chọn tiết bắt đầu' })
+      .int()
+      .min(MIN_SCHOOL_PERIOD, 'Tiết bắt đầu từ 1 đến 16')
+      .max(MAX_SCHOOL_PERIOD, 'Tiết bắt đầu từ 1 đến 16'),
+    endPeriod: z.coerce
+      .number({ message: 'Vui lòng chọn tiết kết thúc' })
+      .int()
+      .min(MIN_SCHOOL_PERIOD, 'Tiết kết thúc từ 1 đến 16')
+      .max(MAX_SCHOOL_PERIOD, 'Tiết kết thúc từ 1 đến 16'),
+    durationMinutes: z.coerce
+      .number({ message: 'Vui lòng chọn thời lượng thi' })
+      .refine(
+        (value) => (EXAM_DURATION_OPTIONS as readonly number[]).includes(value),
+        { message: 'Thời lượng thi phải là 45, 60, 75 hoặc 90 phút' },
+      ),
   })
   .refine((values) => Boolean(values.roomId) || Boolean(values.roomName?.trim()), {
     message: 'Vui lòng chọn phòng thi',
@@ -235,15 +253,26 @@ export const createExamSessionSchema = z
     message: 'Lớp thi chưa gắn học kỳ - chọn lớp khác hoặc liên hệ quản trị viên',
     path: ['semesterName'],
   })
+  .refine((values) => values.endPeriod >= values.startPeriod, {
+    message: 'Tiết kết thúc phải từ tiết bắt đầu trở đi',
+    path: ['endPeriod'],
+  })
   .refine(
     (values) => {
-      const start = new Date(values.startTime).getTime();
-      const end = new Date(values.endTime).getTime();
+      const mapped = scheduleFromPeriodsAndDuration(
+        values.examDate,
+        values.startPeriod,
+        values.endPeriod,
+        values.durationMinutes,
+      );
+      if (!mapped) return false;
+      const start = new Date(mapped.startLocal).getTime();
+      const end = new Date(mapped.endLocal).getTime();
       return Number.isFinite(start) && Number.isFinite(end) && end > start;
     },
     {
-      message: 'Thời gian kết thúc phải sau thời gian bắt đầu',
-      path: ['endTime'],
+      message: 'Khung tiết phải đủ phủ thời gian thi đã chọn',
+      path: ['endPeriod'],
     },
   )
   // Mirrors the backend's IsNotExcessivelyBackdatedConstraint. Caught here
@@ -251,29 +280,60 @@ export const createExamSessionSchema = z
   // after a round trip.
   .refine(
     (values) => {
-      const start = new Date(values.startTime).getTime();
+      const mapped = scheduleFromPeriodsAndDuration(
+        values.examDate,
+        values.startPeriod,
+        values.endPeriod,
+        values.durationMinutes,
+      );
+      if (!mapped) return true;
+      const start = new Date(mapped.startLocal).getTime();
       if (!Number.isFinite(start)) return true;
       return start >= Date.now() - MAX_BACKDATE_MINUTES * 60_000;
     },
     {
       message: `Thời gian bắt đầu không được sớm hơn hiện tại quá ${MAX_BACKDATE_MINUTES} phút`,
-      path: ['startTime'],
+      path: ['examDate'],
     },
   )
-  // Mirrors the backend's HasMinimumDurationConstraint. Skips entirely when
-  // end <= start - that's the previous .refine()'s error to report, not a
-  // "too short" message stacked on top of an already-invalid ordering.
   .refine(
     (values) => {
-      const start = new Date(values.startTime).getTime();
-      const end = new Date(values.endTime).getTime();
+      const mapped = scheduleFromPeriodsAndDuration(
+        values.examDate,
+        values.startPeriod,
+        values.endPeriod,
+        values.durationMinutes,
+      );
+      if (!mapped) return true;
+      const start = new Date(mapped.startLocal).getTime();
+      const end = new Date(mapped.endLocal).getTime();
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return true;
       return end - start >= MIN_EXAM_DURATION_MINUTES * 60_000;
     },
     {
       message: `Phiên thi phải kéo dài ít nhất ${MIN_EXAM_DURATION_MINUTES} phút`,
-      path: ['endTime'],
+      path: ['durationMinutes'],
     },
   );
 
 export type CreateExamSessionFormValues = z.infer<typeof createExamSessionSchema>;
+
+/** Map form → ISO start/end sau khi schema đã hợp lệ. */
+export function formScheduleToIso(values: {
+  examDate: string;
+  startPeriod: number;
+  endPeriod: number;
+  durationMinutes: number;
+}): { startTime: string; endTime: string } | null {
+  const mapped = scheduleFromPeriodsAndDuration(
+    values.examDate,
+    values.startPeriod,
+    values.endPeriod,
+    values.durationMinutes,
+  );
+  if (!mapped) return null;
+  return {
+    startTime: new Date(mapped.startLocal).toISOString(),
+    endTime: new Date(mapped.endLocal).toISOString(),
+  };
+}

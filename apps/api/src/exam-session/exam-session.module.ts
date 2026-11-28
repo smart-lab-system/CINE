@@ -25,6 +25,7 @@ import { ScheduleConflictService } from './schedule-conflict.service';
 import { RubricEntity } from '../grading/entities/rubric.entity';
 import { SemesterEntity } from '../master-data/entities/semester.entity';
 import { RoomEntity } from '../master-data/entities/room.entity';
+import { ComputerEntity } from '../master-data/entities/computer.entity';
 import { SessionLifecycleService } from './session-lifecycle.service';
 import { AdminModule } from '../admin/admin.module';
 import { AgentConnectionModule } from '../agent-connection/agent-connection.module';
@@ -46,6 +47,8 @@ import { StorageModule } from '../storage/storage.module';
       // Dual-write catalog → snapshot lúc tạo phiên (FK mềm + text).
       SemesterEntity,
       RoomEntity,
+      // agent:join resolve {SOMAY} từ computer.location (Vị trí).
+      ComputerEntity,
       // ExamSessionReassignService kiểm tài khoản đích thật là giảng viên
       // và còn hoạt động, trước khi giao phiên thi cho họ. Entity chứ
       // không phải AccountsModule: một `findOne` không đáng để kéo cả

@@ -52,7 +52,7 @@ describe('ExamSession (e2e)', () => {
     start.setUTCHours(8, 0, 0, 0);
     const end = new Date(start);
     end.setUTCHours(10);
-    return { startTime: start.toISOString(), endTime: end.toISOString() };
+    return { startTime: start.toISOString(), endTime: end.toISOString(), startPeriod: 1, endPeriod: 2, durationMinutes: 90 };
   }
 
   beforeAll(async () => {
@@ -154,7 +154,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('creates an exam session with a unique code (happy path)', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -167,6 +167,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx', 'Cau2.docx'],
       });
 
@@ -289,7 +292,7 @@ describe('ExamSession (e2e)', () => {
   // manager) và findByIdForOwner() (đọc SAU, dùng repo đã inject) — hai
   // đường lấy dữ liệu khác nhau, cả hai phải ra cùng một kết quả.
   it('lưu và trả về danh sách file bên trong một deliverable dạng .zip', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -302,6 +305,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: [
           'BaoCao.docx',
           { filename: 'BaiThi.zip', entries: ['Main.java', 'BaoCao.docx'] },
@@ -334,7 +340,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('tạo phiên với deliverable code_project kèm language — 201, cột được lưu đúng (3d2)', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
     const res = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${ownerToken}`)
@@ -346,6 +352,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'GK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: [{ filename: 'bai1.zip', deliverableType: 'code_project', language: 'cpp' }],
       });
 
@@ -359,7 +368,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('language trên deliverable document → 400 (3d2)', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
     const res = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${ownerToken}`)
@@ -371,6 +380,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'GK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: [{ filename: 'bai1.docx', deliverableType: 'document', language: 'cpp' }],
       });
 
@@ -378,7 +390,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('derives the course from the class instead of taking it from the body', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -396,6 +408,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -405,7 +420,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('refuses a class the lecturer does not teach', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -418,6 +433,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -428,7 +446,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('returns 404 for a class that does not exist', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -441,6 +459,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -472,7 +493,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('rejects an unsafe (path-traversal-adjacent) required filename with 400', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -485,6 +506,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['../etc/passwd'],
       });
 
@@ -516,6 +540,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -543,6 +570,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -550,7 +580,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('rejects a duplicate required filename with 400, not 409 (Important #2 fix)', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -563,6 +593,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx', 'Cau1.docx'],
       });
 
@@ -573,7 +606,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('rejects exam session creation without a token (401)', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -581,6 +614,9 @@ describe('ExamSession (e2e)', () => {
         name: 'No Token Session',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -588,7 +624,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('returns 403 when a non-owner requests GET /exam-sessions/:id', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
 
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -601,6 +637,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
@@ -619,7 +658,7 @@ describe('ExamSession (e2e)', () => {
   });
 
   it('rejects exam session creation by a non-teacher role with 403', async () => {
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
     // Unique per run: the "nothing was persisted" assertion below queries by
     // name, so a row left behind by an earlier (pre-guard) run must not be
     // able to fail a later, correct one.
@@ -639,6 +678,9 @@ describe('ExamSession (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
 
@@ -669,7 +711,7 @@ describe('ExamSession (e2e)', () => {
       nameSuffix: string,
       examType: 'TK' | 'GK' | 'CK' = 'TK',
     ): Promise<string> {
-      const { startTime, endTime } = futureWindow();
+      const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${ownerToken}`)
@@ -681,6 +723,9 @@ describe('ExamSession (e2e)', () => {
           examType,
           startTime,
           endTime,
+          startPeriod,
+          endPeriod,
+          durationMinutes,
           requiredFilenames: ['Cau1.docx'],
         });
       expect(response.status).toBe(201);
@@ -837,7 +882,7 @@ describe('ExamSession (e2e)', () => {
       examType: 'TK' | 'GK' | 'CK' = 'TK',
       semesterName: string = FIRST_SEMESTER,
     ): Promise<string> {
-      const { startTime, endTime } = futureWindow();
+      const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${token}`)
@@ -849,6 +894,9 @@ describe('ExamSession (e2e)', () => {
           examType,
           startTime,
           endTime,
+          startPeriod,
+          endPeriod,
+          durationMinutes,
           requiredFilenames: ['Cau1.docx'],
         });
       expect(response.status).toBe(201);
@@ -991,7 +1039,7 @@ describe('ExamSession (e2e)', () => {
       token: string,
       semesterName: string = FIRST_SEMESTER,
     ): Promise<string> {
-      const { startTime, endTime } = futureWindow();
+      const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
       const response = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${token}`)
@@ -1003,6 +1051,9 @@ describe('ExamSession (e2e)', () => {
           examType: 'TK',
           startTime,
           endTime,
+          startPeriod,
+          endPeriod,
+          durationMinutes,
           requiredFilenames: ['Cau1.docx'],
         });
       expect(response.status).toBe(201);
@@ -1106,7 +1157,7 @@ describe('ExamSession (e2e)', () => {
     // instance) only touches sessions whose end_time has passed, so it
     // can never race these assertions.
     async function createSession(name: string): Promise<string> {
-      const { startTime, endTime } = futureWindow();
+      const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
       const created = await request(app.getHttpServer())
         .post('/exam-sessions')
         .set('Authorization', `Bearer ${ownerToken}`)
@@ -1118,6 +1169,9 @@ describe('ExamSession (e2e)', () => {
           examType: 'TK',
           startTime,
           endTime,
+          startPeriod,
+          endPeriod,
+          durationMinutes,
           requiredFilenames: ['Cau1.docx'],
         });
       expect(created.status).toBe(201);
@@ -1235,6 +1289,9 @@ describe('ExamSession (e2e)', () => {
           examType: 'TK',
           startTime: start.toISOString(),
           endTime: end.toISOString(),
+          startPeriod: 1,
+          endPeriod: 2,
+          durationMinutes: 90,
           requiredFilenames: ['Cau1.docx'],
         });
       expect(response.status).toBe(201);

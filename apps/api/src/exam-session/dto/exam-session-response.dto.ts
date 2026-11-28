@@ -48,6 +48,12 @@ export class ExamSessionResponseDto {
   semesterName!: string;
   startTime!: Date;
   endTime!: Date;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  startPeriod!: number | null;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  endPeriod!: number | null;
+  /** Thời gian thi (phút): 45/60/75/90; null = phiên cũ. */
+  durationMinutes!: number | null;
   status!: ExamSessionStatus;
   /**
    * Thời điểm phiên rời `collecting`, và ai chốt.
@@ -105,6 +111,12 @@ export class ExamSessionListItemDto {
   examType!: ExamType;
   startTime!: Date;
   endTime!: Date;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  startPeriod!: number | null;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  endPeriod!: number | null;
+  /** Thời gian thi (phút): 45/60/75/90; null = phiên cũ. */
+  durationMinutes!: number | null;
   status!: ExamSessionStatus;
   /**
    * Đã có dòng `session_roster` (sau POST …/open hoặc thêm tay).

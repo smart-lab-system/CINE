@@ -60,6 +60,9 @@ export function useUpdateExamSessionSchedule() {
         roomName?: string;
         startTime?: string;
         endTime?: string;
+        startPeriod?: number;
+        endPeriod?: number;
+        durationMinutes?: number;
       };
     }) => updateExamSessionSchedule(args.id, args.body),
     onSuccess: () => {

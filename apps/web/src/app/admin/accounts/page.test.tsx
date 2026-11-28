@@ -10,6 +10,7 @@ import AccountsPage from './page';
 const useAccountsMock = vi.fn();
 const createMutate = vi.fn();
 const updateMutate = vi.fn();
+const changePasswordMutate = vi.fn();
 const deleteMutate = vi.fn();
 const toggleActiveMutate = vi.fn();
 
@@ -17,6 +18,7 @@ vi.mock('@/hooks/useAccounts', () => ({
   useAccounts: (...args: unknown[]) => useAccountsMock(...args),
   useCreateAccount: () => ({ mutate: createMutate, isPending: false }),
   useUpdateAccount: () => ({ mutate: updateMutate, isPending: false }),
+  useChangeAccountPassword: () => ({ mutate: changePasswordMutate, isPending: false }),
   useDeleteAccount: () => ({ mutate: deleteMutate, isPending: false }),
   useToggleAccountActive: () => ({ mutate: toggleActiveMutate, isPending: false }),
 }));
@@ -34,6 +36,7 @@ beforeEach(() => {
   useAccountsMock.mockReset();
   createMutate.mockReset();
   updateMutate.mockReset();
+  changePasswordMutate.mockReset();
   deleteMutate.mockReset();
   toggleActiveMutate.mockReset();
 });

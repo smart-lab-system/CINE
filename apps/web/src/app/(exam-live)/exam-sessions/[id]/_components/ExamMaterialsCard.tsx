@@ -2,15 +2,28 @@
 
 import { useRef, useState } from 'react';
 import { FileText, Trash2, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useDeleteExamMaterial,
   useExamMaterials,
   useUploadExamMaterial,
 } from '@/hooks/useExamSession';
+import {
+  ExamBankHttpError,
+  parseCourseExamDocx,
+  type ParsedCourseExamDocx,
+} from '@/lib/api/exam-bank';
+import { UploadExamPreviewDialog } from './UploadExamPreviewDialog';
 
 interface ExamMaterialsCardProps {
   examSessionId: string;
@@ -20,6 +33,11 @@ interface ExamMaterialsCardProps {
   canEdit: boolean;
   /** Hub: ô file đã chọn nhưng request tải lên chưa xong. */
   onFileSelected?: (selected: boolean) => void;
+  /**
+   * Môn catalog của phiên - cần để «Tải đề mới» parse + tạo kho đề.
+   * Null (lobby / chưa gắn môn) → mục đề mới disabled.
+   */
+  courseId?: string | null;
 }
 
 function formatSize(bytes: number): string {
@@ -44,14 +62,22 @@ export function ExamMaterialsCard({
   releaseAt,
   canEdit,
   onFileSelected,
+  courseId = null,
 }: ExamMaterialsCardProps) {
   const materials = useExamMaterials(examSessionId);
   const upload = useUploadExamMaterial(examSessionId);
   const remove = useDeleteExamMaterial(examSessionId);
-  const fileInput = useRef<HTMLInputElement>(null);
+  const docInput = useRef<HTMLInputElement>(null);
+  const materialInput = useRef<HTMLInputElement>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [previewDraft, setPreviewDraft] = useState<ParsedCourseExamDocx | null>(
+    null,
+  );
+  const [previewWarnings, setPreviewWarnings] = useState<string[]>([]);
 
-  function onPick(file: File | undefined) {
+  function onPickMaterial(file: File | undefined) {
     if (!file) return;
     onFileSelected?.(true);
     upload.mutate(file, {
@@ -59,10 +85,37 @@ export function ExamMaterialsCard({
       // picking the same file again fires no change event and looks broken.
       onSettled: () => {
         onFileSelected?.(false);
-        if (fileInput.current) fileInput.current.value = '';
+        if (materialInput.current) materialInput.current.value = '';
       },
     });
   }
+
+  async function onPickExamDocx(file: File | undefined) {
+    if (!file || !courseId) return;
+    setParseError(null);
+    onFileSelected?.(true);
+    setParsing(true);
+    try {
+      const draft = await parseCourseExamDocx(courseId, file);
+      setPreviewWarnings(draft.warnings ?? []);
+      setPreviewDraft(draft);
+    } catch (err) {
+      const message =
+        err instanceof ExamBankHttpError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Không đọc được file Word.';
+      setParseError(message);
+      toast.error(message);
+    } finally {
+      setParsing(false);
+      onFileSelected?.(false);
+      if (docInput.current) docInput.current.value = '';
+    }
+  }
+
+  const uploadBusy = upload.isPending || parsing;
 
   return (
     <Card className="overflow-hidden">
@@ -71,20 +124,55 @@ export function ExamMaterialsCard({
         {canEdit && (
           <>
             <input
-              ref={fileInput}
+              ref={docInput}
+              type="file"
+              accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="sr-only"
+              onChange={(event) => void onPickExamDocx(event.target.files?.[0])}
+            />
+            <input
+              ref={materialInput}
               type="file"
               className="sr-only"
-              onChange={(event) => onPick(event.target.files?.[0])}
+              onChange={(event) => onPickMaterial(event.target.files?.[0])}
             />
-            <Button
-              type="button"
-              size="sm"
-              loading={upload.isPending}
-              onClick={() => fileInput.current?.click()}
-            >
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              Tải file
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="sm" loading={uploadBusy}>
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  Tải file
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuItem
+                  disabled={!courseId || uploadBusy}
+                  className="flex flex-col items-start gap-0.5"
+                  onSelect={() => {
+                    // Đóng menu trước, rồi mở picker trong cùng lượt tương tác.
+                    window.setTimeout(() => docInput.current?.click(), 0);
+                  }}
+                >
+                  <span>Tải đề mới</span>
+                  <small className="text-caption text-muted-foreground">
+                    {courseId
+                      ? 'Word theo mẫu - tạo đề trong kho rồi gắn phiên'
+                      : 'Cần môn catalog để tạo đề trong kho'}
+                  </small>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={uploadBusy}
+                  className="flex flex-col items-start gap-0.5"
+                  onSelect={() => {
+                    window.setTimeout(() => materialInput.current?.click(), 0);
+                  }}
+                >
+                  <span>Tải tài liệu</span>
+                  <small className="text-caption text-muted-foreground">
+                    Dataset, starter code, file phát kèm
+                  </small>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
       </CardHeader>
@@ -99,6 +187,11 @@ export function ExamMaterialsCard({
           </AlertDescription>
         </Alert>
 
+        {parseError && (
+          <Alert variant="destructive">
+            <AlertDescription>{parseError}</AlertDescription>
+          </Alert>
+        )}
         {upload.isError && (
           <Alert variant="destructive">
             <AlertDescription>{upload.error.message}</AlertDescription>
@@ -165,6 +258,21 @@ export function ExamMaterialsCard({
           </ul>
         )}
       </CardContent>
+
+      {courseId ? (
+        <UploadExamPreviewDialog
+          open={previewDraft !== null}
+          sessionId={examSessionId}
+          courseId={courseId}
+          draft={previewDraft}
+          warnings={previewWarnings}
+          onClose={() => {
+            setPreviewDraft(null);
+            setPreviewWarnings([]);
+          }}
+          onAttached={() => setParseError(null)}
+        />
+      ) : null}
     </Card>
   );
 }

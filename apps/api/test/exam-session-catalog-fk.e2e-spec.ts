@@ -81,6 +81,9 @@ describe('exam_session catalog FK dual-write (e2e)', () => {
     return {
       startTime: new Date(start).toISOString(),
       endTime: new Date(start + 3_600_000).toISOString(),
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes: 90,
     };
   }
 

@@ -4,6 +4,7 @@ import {
 } from '@/app/teacher/exam-sessions/new/schema';
 import type { ExamType, ReplaceRequiredDeliverablesInput } from '@/lib/api/exam-session';
 import { evaluateSetupChecklist } from './SetupChecklist';
+import { infoDraftToLocalRange } from './setup-info-schedule';
 import {
   type SetupDraft,
   type SetupInfoDraft,
@@ -16,7 +17,15 @@ const EXAM_TYPES: readonly ExamType[] = ['TK', 'GK', 'CK'];
 export type SaveAction =
   | {
       kind: 'info';
-      body: { examType: ExamType; roomId: string; startTime: string; endTime: string };
+      body: {
+        examType: ExamType;
+        roomId: string;
+        startTime: string;
+        endTime: string;
+        startPeriod: number;
+        endPeriod: number;
+        durationMinutes: number;
+      };
     }
   | { kind: 'folder'; body: ReplaceRequiredDeliverablesInput }
   | { kind: 'rubric'; rubricId: string };
@@ -33,9 +42,20 @@ export type FinishPlan =
 export function infoReady(info: SetupInfoDraft | undefined): info is SetupInfoDraft {
   if (!info) return false;
   if (!EXAM_TYPES.includes(info.examType as ExamType)) return false;
-  if (!info.roomId || !info.startLocal || !info.endLocal) return false;
-  const start = new Date(info.startLocal).getTime();
-  const end = new Date(info.endLocal).getTime();
+  if (
+    !info.roomId ||
+    !info.examDate ||
+    !info.startPeriod ||
+    !info.endPeriod ||
+    !info.durationMinutes
+  ) {
+    return false;
+  }
+  if (info.endPeriod < info.startPeriod) return false;
+  const range = infoDraftToLocalRange(info);
+  if (!range) return false;
+  const start = new Date(range.startLocal).getTime();
+  const end = new Date(range.endLocal).getTime();
   return Number.isFinite(start) && Number.isFinite(end) && end > start;
 }
 
@@ -81,13 +101,17 @@ export function saveDraftPlan(
 
   if (draft.info) {
     if (infoReady(draft.info)) {
+      const range = infoDraftToLocalRange(draft.info)!;
       actions.push({
         kind: 'info',
         body: {
           examType: draft.info.examType as ExamType,
           roomId: draft.info.roomId,
-          startTime: new Date(draft.info.startLocal).toISOString(),
-          endTime: new Date(draft.info.endLocal).toISOString(),
+          startTime: new Date(range.startLocal).toISOString(),
+          endTime: new Date(range.endLocal).toISOString(),
+          startPeriod: draft.info.startPeriod,
+          endPeriod: draft.info.endPeriod,
+          durationMinutes: draft.info.durationMinutes,
         },
       });
     } else {
@@ -118,8 +142,9 @@ function mergedChecklist(
 ) {
   const info = draft?.info ?? server.info;
   const folder = draft?.folder ?? server.folder;
-  const start = new Date(info.startLocal);
-  const end = new Date(info.endLocal);
+  const range = infoDraftToLocalRange(info);
+  const start = range ? new Date(range.startLocal) : new Date(NaN);
+  const end = range ? new Date(range.endLocal) : new Date(NaN);
   return evaluateSetupChecklist({
     status: counts.status,
     startTime: Number.isNaN(start.getTime()) ? '' : start.toISOString(),

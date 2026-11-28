@@ -3,13 +3,16 @@ import {
   ArrayUnique,
   IsArray,
   IsIn,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
+  Max,
   MaxLength,
+  Min,
   Validate,
   ValidateIf,
   ValidateNested,
@@ -17,7 +20,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
-import { plainToInstance, Transform } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import { ExamType } from '../entities/exam-session.entity';
 import { DeliverableType } from '../entities/required-deliverable.entity';
 import { DECLARED_LANGUAGES, DeclaredLanguage } from '../declared-language';
@@ -27,6 +30,11 @@ import { DECLARED_LANGUAGES, DeclaredLanguage } from '../declared-language';
 // `@Matches(undefined)` bên dưới nhận MỌI tên file. Xem doc comment của
 // SAFE_FILENAME_REGEX.
 import { FILENAME_TEMPLATE_REGEX } from '../filename-template';
+import {
+  EXAM_DURATION_OPTIONS,
+  MAX_SCHOOL_PERIOD,
+  MIN_SCHOOL_PERIOD,
+} from '../school-periods';
 
 const EXAM_TYPES: ExamType[] = ['TK', 'GK', 'CK'];
 
@@ -99,6 +107,21 @@ class HasMinimumDurationConstraint implements ValidatorConstraintInterface {
 
   defaultMessage(): string {
     return `endTime must be at least ${MIN_EXAM_DURATION_MINUTES} minutes after startTime`;
+  }
+}
+
+@ValidatorConstraint({ name: 'IsEndPeriodOnOrAfterStart', async: false })
+class IsEndPeriodOnOrAfterStartConstraint implements ValidatorConstraintInterface {
+  validate(endPeriod: number, args: ValidationArguments): boolean {
+    const { startPeriod } = args.object as CreateExamSessionDto;
+    if (!Number.isInteger(startPeriod) || !Number.isInteger(endPeriod)) {
+      return true;
+    }
+    return endPeriod >= startPeriod;
+  }
+
+  defaultMessage(): string {
+    return 'endPeriod must be greater than or equal to startPeriod';
   }
 }
 
@@ -204,14 +227,14 @@ class LanguageOnlyOnCodeProjectConstraint implements ValidatorConstraintInterfac
 export class RequiredFilenameDto {
   @IsString()
   // A declared name is either a literal filename or a pattern with tokens
-  // the server fills per student ({MSSV}, {TEN}, {PHONG}, {SOMAY}). The
+  // the server fills per student ({MSSV}, {HOTEN}, {SOMAY}). The
   // pattern form carries the SAME path-traversal rules — it is
   // SAFE_FILENAME_REGEX plus the tokens, not a looser check — and a token
   // nobody defined is rejected here rather than reaching an agent as a
   // literal "{LOP}" in a filename.
   @Matches(FILENAME_TEMPLATE_REGEX, {
     message:
-      'Tên file chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+      'Tên file chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {HOTEN} {SOMAY}',
   })
   // Matches required_deliverable.required_filename's varchar(255) column —
   // without this, an overlong filename passes DTO validation and hits the
@@ -241,7 +264,7 @@ export class RequiredFilenameDto {
 
   /**
    * Tên các file phải nằm BÊN TRONG, mỗi cái là một MẪU y hệt `filename` —
-   * chịu cùng `FILENAME_TEMPLATE_REGEX`, nên token `{MSSV} {TEN} {PHONG}
+   * chịu cùng `FILENAME_TEMPLATE_REGEX`, nên token `{MSSV} {HOTEN}
    * {SOMAY}` dùng được (spec §5.2). Ký tự "/" vẫn bị cấm: phép đối chiếu
    * khớp theo TÊN, kệ thư mục (spec §3.2), nên khai đường dẫn là vô nghĩa.
    *
@@ -259,7 +282,7 @@ export class RequiredFilenameDto {
   @Matches(FILENAME_TEMPLATE_REGEX, {
     each: true,
     message:
-      'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {TEN} {PHONG} {SOMAY}',
+      'Tên file bên trong chỉ được chứa chữ, số, "_", "-", "." và các ô {MSSV} {HOTEN} {SOMAY}',
   })
   @MaxLength(255, { each: true })
   @Validate(EntriesOnlyOnArchiveConstraint)
@@ -337,6 +360,35 @@ export class CreateExamSessionDto {
   @Validate(IsAfterStartTimeConstraint)
   @Validate(HasMinimumDurationConstraint)
   endTime!: string;
+
+  /**
+   * Tiết bắt đầu (1-16). Client map lịch tiết → startTime; cột lưu để
+   * hub/sửa lịch hiện lại đúng tiết đã chọn.
+   */
+  @Type(() => Number)
+  @IsInt()
+  @Min(MIN_SCHOOL_PERIOD)
+  @Max(MAX_SCHOOL_PERIOD)
+  startPeriod!: number;
+
+  /**
+   * Tiết kết thúc (1-16), phải ≥ startPeriod. Client suy từ
+   * startPeriod + durationMinutes.
+   */
+  @Type(() => Number)
+  @IsInt()
+  @Min(MIN_SCHOOL_PERIOD)
+  @Max(MAX_SCHOOL_PERIOD)
+  @Validate(IsEndPeriodOnOrAfterStartConstraint)
+  endPeriod!: number;
+
+  /**
+   * Thời gian thi (phút): 45 / 60 / 75 / 90.
+   */
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([...EXAM_DURATION_OPTIONS])
+  durationMinutes!: number;
 
   /**
    * File bắt buộc — **deprecated trên create** (spec create-slim 2026-10-18).

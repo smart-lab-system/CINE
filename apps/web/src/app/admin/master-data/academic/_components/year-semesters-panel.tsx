@@ -23,14 +23,12 @@ import {
 import { TableCell, TableRow } from '@/components/ui/table';
 import { MasterDataHttpError, type Semester } from '@/lib/api/master-data';
 import { useSemesterMutations, useSemesters } from '@/hooks/useMasterData';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import {
   CatalogSection,
   DeleteIconButton,
   EditIconButton,
   RowActions,
 } from '../../_components/catalog-table';
-import { CatalogFilterBar } from '../../_components/catalog-filter-bar';
 import {
   ACADEMIC_STATUSES,
   SEMESTER_CODES,
@@ -59,24 +57,16 @@ export function YearSemestersPanel({
   yearId: string;
   yearCode: string;
 }) {
-  const [semSearch, setSemSearch] = useState('');
-  const [semStatus, setSemStatus] = useState('all');
-  const debouncedSemSearch = useDebouncedValue(semSearch, 300);
-
   const semesters = useSemesters({
     page: 1,
     pageSize: 50,
     academicYearId: yearId,
-    search: debouncedSemSearch.trim() || undefined,
-    status: semStatus === 'all' ? undefined : semStatus,
   });
   const semMut = useSemesterMutations();
 
   const [semOpen, setSemOpen] = useState(false);
   const [editingSemId, setEditingSemId] = useState<string | null>(null);
   const [semForm, setSemForm] = useState(EMPTY_SEM);
-
-  const semFiltered = Boolean(debouncedSemSearch.trim()) || semStatus !== 'all';
 
   function onErr(e: unknown) {
     toast.error(e instanceof MasterDataHttpError ? e.message : 'Thao tác thất bại');
@@ -172,35 +162,7 @@ export function YearSemestersPanel({
         loading={false}
         onCreate={openCreateSem}
         headers={['Mã', 'Tên', 'Bắt đầu', 'Kết thúc', 'Trạng thái', '']}
-        empty={semFiltered ? 'Không khớp bộ lọc.' : 'Chưa có học kỳ trong năm này.'}
-        toolbar={
-          <CatalogFilterBar
-            search={semSearch}
-            onSearchChange={setSemSearch}
-            searchPlaceholder="Mã hoặc tên học kỳ…"
-            searchAriaLabel="Tìm học kỳ"
-            filters={
-              <Select value={semStatus} onValueChange={setSemStatus}>
-                <SelectTrigger className="sm:w-44" aria-label="Lọc trạng thái học kỳ">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                  {ACADEMIC_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {academicStatusLabel(s)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-            activeSummary={semFiltered ? 'Đang lọc học kỳ' : null}
-            onClear={() => {
-              setSemSearch('');
-              setSemStatus('all');
-            }}
-          />
-        }
+        empty="Chưa có học kỳ trong năm này."
         rows={
           semesters.data?.items.length
             ? semesters.data.items.map((s) => (

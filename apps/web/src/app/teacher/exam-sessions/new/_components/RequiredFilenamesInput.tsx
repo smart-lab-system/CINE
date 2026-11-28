@@ -59,12 +59,9 @@ const SELECT_CLASS =
   'h-10 rounded-md border border-input bg-surface px-2 text-small text-foreground shadow-sm focus:border-accent focus:outline-none';
 
 /**
- * `.zip` được tạo trước tự động (EOCD rỗng hợp lệ, xem
- * apps/agent/src/workspace-files.ts); `.rar` thì KHÔNG có cách nào hợp
- * pháp tạo trước - sinh viên phải tự nén bằng WinRAR đã cài sẵn trên máy.
- * Giảng viên cần biết điều này LÚC KHAI BÁO, không phải sau khi phòng thi
- * đã mở (tờ hướng dẫn agent đã nói với sinh viên, nhưng đến lúc đó giảng
- * viên không còn cơ hội đổi sang .zip nữa).
+ * Archive deliverable: lúc nộp, agent tự đóng gói workspace (ignore
+ * node_modules/target/…). `.zip` tạo placeholder EOCD lúc vào phòng;
+ * `.rar` cần WinRAR trên máy lab để agent đóng được - GV cần biết lúc khai.
  */
 function isRarFilename(value: string): boolean {
   return value.toLowerCase().endsWith('.rar');
@@ -103,7 +100,7 @@ export function RequiredFilenamesInput() {
 
   /**
    * Inserts a token at the caret of the row it belongs to, rather than
-   * appending. A teacher building `{PHONG}_{MSSV}_...` types the separator
+   * appending. A teacher building `{MSSV}_{HOTEN}_...` types the separator
    * and then wants the next token exactly there.
    */
   function insertToken(index: number, token: string) {
@@ -161,9 +158,10 @@ export function RequiredFilenamesInput() {
       </p>
 
       <p className="text-small text-muted-foreground">
-        Muốn mỗi sinh viên nộp một tên file riêng thì chèn các ô dưới đây - máy chủ tự điền
-        theo danh sách lớp, sinh viên không phải tự đặt tên. Dấu tiếng Việt trong họ tên sẽ
-        được bỏ đi (&quot;Nguyễn Văn An&quot; → <code className="font-mono">NguyenVanAn</code>).
+        Muốn mỗi sinh viên nộp một tên file riêng thì chèn các ô dưới đây - máy chủ tự điền.{' '}
+        <code className="font-mono">{'{HOTEN}'}</code> từ danh sách lớp (bỏ dấu tiếng Việt).{' '}
+        <code className="font-mono">{'{SOMAY}'}</code> từ Vị trí máy trong danh sách máy tính; nếu
+        trống thì dùng mã phòng + hostname.
       </p>
 
       <div className="flex flex-col gap-3">
@@ -191,7 +189,7 @@ export function RequiredFilenamesInput() {
               <div className="flex items-center gap-2">
                 <Input
                   id={`required-filename-${index}`}
-                  placeholder="vd: bai_lam.docx hoặc {MSSV}_{TEN}.docx"
+                  placeholder="vd: bai_lam.docx hoặc {MSSV}_{HOTEN}.docx"
                   className="font-mono"
                   invalid={Boolean(fieldError)}
                   {...register(`requiredFilenames.${index}.value` as const)}
@@ -303,10 +301,10 @@ export function RequiredFilenamesInput() {
                 <Alert variant="warning" className="py-2">
                   <TriangleAlert className="h-4 w-4" aria-hidden="true" />
                   <AlertDescription className="text-caption">
-                    File .rar không tự tạo trước được - máy sinh viên PHẢI có WinRAR cài sẵn
-                    mới tự nén được. Cân nhắc đổi sang{' '}
-                    <code className="font-mono">.zip</code> (máy Windows nào cũng nén được),
-                    hoặc xác nhận phòng máy thi đã cài WinRAR trước khi thi.
+                    Agent tự đóng gói bài nộp .rar lúc thu bài - máy thi PHẢI có WinRAR
+                    (Rar.exe). Cân nhắc đổi sang{' '}
+                    <code className="font-mono">.zip</code> (không cần WinRAR), hoặc xác nhận
+                    phòng máy đã cài WinRAR trước khi thi.
                   </AlertDescription>
                 </Alert>
               )}

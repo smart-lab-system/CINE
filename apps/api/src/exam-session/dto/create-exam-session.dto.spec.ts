@@ -19,6 +19,9 @@ const BASE = {
   examType: 'TK',
   startTime: '2027-01-01T08:00:00.000Z',
   endTime: '2027-01-01T10:00:00.000Z',
+  startPeriod: 3,
+  endPeriod: 5,
+  durationMinutes: 90,
 };
 
 function validateFilenames(requiredFilenames: unknown) {
@@ -45,7 +48,12 @@ describe('CreateExamSessionDto.requiredFilenames', () => {
   });
 
   it('nhận tên file thường và mẫu có ô hợp lệ', () => {
-    expect(validateFilenames(['Cau1.docx', '{PHONG}_{MSSV}_{TEN}_{SOMAY}.docx'])).toHaveLength(0);
+    expect(validateFilenames(['Cau1.docx', '{MSSV}_{HOTEN}_{SOMAY}.docx'])).toHaveLength(0);
+  });
+
+  it('từ chối TEN và PHONG đã nghỉ hưu', () => {
+    expect(validateFilenames(['{TEN}_Cau1.docx'])).not.toHaveLength(0);
+    expect(validateFilenames(['{PHONG}_{MSSV}.docx'])).not.toHaveLength(0);
   });
 });
 
@@ -186,6 +194,39 @@ describe('CreateExamSessionDto — create-slim (filenames optional)', () => {
 
   it('chấp nhận mảng rỗng — phiên scheduled chưa khai file', () => {
     expect(validateFilenames([])).toHaveLength(0);
+  });
+});
+
+describe('CreateExamSessionDto — school periods', () => {
+  it('từ chối thiếu startPeriod/endPeriod/durationMinutes', () => {
+    const errors = validateDto({
+      startPeriod: undefined,
+      endPeriod: undefined,
+      durationMinutes: undefined,
+    });
+    expect(errors.some((e) => e.property === 'startPeriod')).toBe(true);
+    expect(errors.some((e) => e.property === 'endPeriod')).toBe(true);
+    expect(errors.some((e) => e.property === 'durationMinutes')).toBe(true);
+  });
+
+  it('từ chối endPeriod < startPeriod', () => {
+    const errors = validateDto({ startPeriod: 5, endPeriod: 2 });
+    expect(errors.some((e) => e.property === 'endPeriod')).toBe(true);
+  });
+
+  it('từ chối tiết ngoài 1-16', () => {
+    const errors = validateDto({ startPeriod: 0, endPeriod: 17 });
+    expect(errors.some((e) => e.property === 'startPeriod')).toBe(true);
+    expect(errors.some((e) => e.property === 'endPeriod')).toBe(true);
+  });
+
+  it('từ chối durationMinutes không thuộc 45/60/75/90', () => {
+    const errors = validateDto({ durationMinutes: 50 });
+    expect(errors.some((e) => e.property === 'durationMinutes')).toBe(true);
+  });
+
+  it('nhận tiết 1-3 + 90 phút', () => {
+    expect(validateDto({ startPeriod: 1, endPeriod: 3, durationMinutes: 90 })).toHaveLength(0);
   });
 });
 

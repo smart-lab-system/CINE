@@ -51,6 +51,9 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
     return {
       startTime: new Date(start).toISOString(),
       endTime: new Date(start + 15 * 60_000).toISOString(),
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes: 90,
     };
   }
 

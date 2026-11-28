@@ -25,7 +25,17 @@ const STRIDE_MS = 2 * HOUR_MS;
 export interface SessionWindow {
   startTime: string;
   endTime: string;
+  /** Metadata tiết (DTO bắt buộc). Không cần khớp đúng giờ e2e. */
+  startPeriod: number;
+  endPeriod: number;
+  durationMinutes: number;
 }
+
+const DEFAULT_PERIODS = {
+  startPeriod: 1,
+  endPeriod: 2,
+  durationMinutes: 90,
+} as const;
 
 /**
  * Phiên ĐANG diễn ra — nhưng chỉ LẦN GỌI ĐẦU trong một spec mới thật sự đang
@@ -42,6 +52,7 @@ export function liveSessionWindow(): SessionWindow {
   return {
     startTime: new Date(start).toISOString(),
     endTime: new Date(start + HOUR_MS).toISOString(),
+    ...DEFAULT_PERIODS,
   };
 }
 
@@ -54,6 +65,7 @@ export function upcomingSessionWindow(): SessionWindow {
   return {
     startTime: new Date(start).toISOString(),
     endTime: new Date(start + HOUR_MS).toISOString(),
+    ...DEFAULT_PERIODS,
   };
 }
 
@@ -75,6 +87,7 @@ export function concurrentLiveWindow(): SessionWindow {
   return {
     startTime: new Date(start).toISOString(),
     endTime: new Date(start + HOUR_MS).toISOString(),
+    ...DEFAULT_PERIODS,
   };
 }
 

@@ -48,30 +48,27 @@ describe('renderInstructions', () => {
     expect(text).toContain('Bên trong PHẢI có');
   });
 
-  // `.rar` không có cách nào hợp lệ tạo trước (xem workspace-files.ts) -
-  // đây là sự thật TĨNH về đuôi file, không phụ thuộc kết quả một lượt
-  // `createSubmissionFiles` cụ thể nào, nên `renderInstructions` tự kiểm
-  // đuôi, không nhận qua tham số.
-  it('file .rar thì có câu giải thích KHÔNG tạo trước được', () => {
+  it('file .rar thì nói agent tự đóng gói + cần WinRAR', () => {
     const text = renderInstructions(
       base({ requiredDeliverables: [{ filename: 'BaiThi.rar', entries: [] }] }),
     );
-    expect(text).toMatch(/không tạo trước được/i);
+    expect(text).toMatch(/tự đóng gói/i);
     expect(text).toMatch(/winrar/i);
   });
 
-  it('file .zip thì KHÔNG có câu giải thích của .rar', () => {
+  it('file .zip thì nói agent tự đóng gói, không nhắc WinRAR', () => {
     const text = renderInstructions(
       base({ requiredDeliverables: [{ filename: 'BaiThi.zip', entries: [] }] }),
     );
-    expect(text).not.toMatch(/không tạo trước được/i);
+    expect(text).toMatch(/tự đóng gói/i);
+    expect(text).not.toMatch(/winrar/i);
   });
 
-  it('đuôi không phải archive thì không đổi gì so với trước - không có khối con, không câu .rar', () => {
+  it('đuôi không phải archive thì không đổi gì so với trước - không có khối con, không câu đóng gói', () => {
     const text = renderInstructions(base({ requiredDeliverables: [{ filename: 'Cau2.py', entries: [] }] }));
     expect(text).toContain('* Cau2.py');
     expect(text).not.toContain('Bên trong PHẢI có');
-    expect(text).not.toMatch(/không tạo trước được/i);
+    expect(text).not.toMatch(/tự đóng gói/i);
   });
 
   it('nhiều file bắt buộc vẫn liệt kê đủ, đúng thứ tự', () => {

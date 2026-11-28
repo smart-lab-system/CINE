@@ -3,16 +3,16 @@ import { finishPlan, saveDraftPlan } from './setup-commit';
 import type { SetupDraft, SetupServerBaseline } from './setup-draft';
 
 function futureInfo(over: Partial<SetupServerBaseline['info']> = {}) {
-  const start = new Date(Date.now() + 48 * 60 * 60 * 1000);
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const d = new Date(Date.now() + 48 * 60 * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');
-  const local = (d: Date) =>
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const examDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   return {
     examType: 'TK',
     roomId: 'room-1',
-    startLocal: local(start),
-    endLocal: local(end),
+    examDate,
+    startPeriod: 1,
+    endPeriod: 3,
+    durationMinutes: 90,
     ...over,
   };
 }
@@ -31,13 +31,12 @@ function draft(partial: Partial<SetupDraft>): SetupDraft {
 }
 
 describe('saveDraftPlan', () => {
-  it('giờ kết thúc trước giờ bắt đầu không ném - info nằm trong nháp', () => {
+  it('thiếu thời gian thi không ném - info nằm trong nháp', () => {
     const base = server();
     const plan = saveDraftPlan(
       draft({
         info: futureInfo({
-          startLocal: base.info.endLocal,
-          endLocal: base.info.startLocal,
+          durationMinutes: 0,
         }),
       }),
       base,
@@ -56,6 +55,12 @@ describe('saveDraftPlan', () => {
     );
     expect(plan.actions.map((action) => action.kind)).toEqual(['info']);
     expect(plan.kept?.folder?.requiredFilenames[0]?.value).toBe('');
+    const infoAction = plan.actions.find((action) => action.kind === 'info');
+    if (infoAction?.kind === 'info') {
+      expect(infoAction.body.startPeriod).toBe(1);
+      expect(infoAction.body.endPeriod).toBe(3);
+      expect(infoAction.body.durationMinutes).toBe(90);
+    }
   });
 });
 
@@ -82,13 +87,12 @@ describe('finishPlan', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('giờ không hợp lệ thì chặn ở Thông tin chung', () => {
+  it('thời lượng không hợp lệ thì chặn ở Thông tin chung', () => {
     const base = server();
     const result = finishPlan(
       draft({
         info: futureInfo({
-          startLocal: base.info.endLocal,
-          endLocal: base.info.startLocal,
+          durationMinutes: 0,
         }),
       }),
       base,

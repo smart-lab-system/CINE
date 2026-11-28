@@ -11,6 +11,10 @@
  * A deliverable is templated iff its declared name contains a token. There
  * is no separate flag: a flag would be a second fact about the same string
  * that could disagree with it.
+ *
+ * Allowed tokens (new declarations): `{MSSV}`, `{HOTEN}`, `{SOMAY}`.
+ * Legacy `{TEN}` / `{PHONG}` still render for in-flight patterns but are
+ * rejected by FILENAME_TEMPLATE_REGEX at the DTO.
  */
 
 /**
@@ -34,8 +38,8 @@
  */
 export const SAFE_FILENAME_REGEX = /^(?!.*\.\.)[A-Za-z0-9_.-]+$/;
 
-/** The only tokens that exist. Anything else is rejected at the DTO. */
-export const FILENAME_TOKENS = ['MSSV', 'TEN', 'PHONG', 'SOMAY'] as const;
+/** Tokens accepted on new declarations (DTO / web form). */
+export const FILENAME_TOKENS = ['MSSV', 'HOTEN', 'SOMAY'] as const;
 export type FilenameToken = (typeof FILENAME_TOKENS)[number];
 
 /**
@@ -60,18 +64,16 @@ export interface FilenameContext {
   studentMssv: string;
   /** The roster spelling — the authoritative one, never a typed name. */
   studentName: string;
-  roomName: string;
   /**
-   * The lab machine's own name, as the agent reports it.
-   *
-   * `{SOMAY}` means "seat number", and this schema has no seat concept —
-   * the design deliberately did not invent one. A lab names its machines
-   * after their seats, so the machine's own hostname is the closest true
-   * answer available without asking the student to type anything, which
-   * CLAUDE.md forbids. If a lab does not name machines that way, the
-   * honest move is not to use this token.
+   * Resolved seat label for `{SOMAY}`: computer.location, or
+   * `roomCode_hostname` when location is missing (see `resolveSeatLabel`).
    */
-  machineName: string | null;
+  seatLabel: string;
+  /**
+   * Room code / name for legacy `{PHONG}` patterns only.
+   * New declarations cannot use `{PHONG}`.
+   */
+  roomLabel: string;
 }
 
 /** Shown instead of a hole, so a missing part is visible rather than silent. */
@@ -92,7 +94,7 @@ const MISSING = 'UNKNOWN';
  * legibility, but these names are read off a projector and picked out of a
  * folder listing, which is most of what they are for.
  */
-function normalize(value: string): string {
+export function normalizeFilenamePart(value: string): string {
   const stripped = value
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -102,6 +104,29 @@ function normalize(value: string): string {
       next ? next.toUpperCase() : '',
     );
   return stripped === '' ? MISSING : stripped;
+}
+
+/**
+ * `{SOMAY}` value: prefer catalog **Vị trí** (`location`); else
+ * `roomCode_hostname` (mã phòng + hostname máy).
+ */
+export function resolveSeatLabel(opts: {
+  location: string | null | undefined;
+  roomCode: string;
+  hostname: string | null | undefined;
+}): string {
+  const location = (opts.location ?? '').trim();
+  if (location) {
+    return location;
+  }
+  const room = (opts.roomCode ?? '').trim();
+  const host = (opts.hostname ?? '').trim();
+  if (room && host) {
+    return `${room}_${host}`;
+  }
+  if (room) return room;
+  if (host) return host;
+  return '';
 }
 
 /**
@@ -119,20 +144,20 @@ export function renderFilename(declared: string, context: FilenameContext): stri
     return declared;
   }
 
-  const rendered = declared.replace(TOKEN_PATTERN, (match, token: string) => {
-    switch (token as FilenameToken) {
+  const rendered = declared.replace(TOKEN_PATTERN, (_match, token: string) => {
+    switch (token) {
       case 'MSSV':
-        return normalize(context.studentMssv);
-      case 'TEN':
-        return normalize(context.studentName);
-      case 'PHONG':
-        return normalize(context.roomName);
-      case 'SOMAY':
-        return context.machineName ? normalize(context.machineName) : MISSING;
+        return normalizeFilenamePart(context.studentMssv);
+      case 'HOTEN':
+      case 'TEN': // legacy patterns still in DB
+        return normalizeFilenamePart(context.studentName);
+      case 'SOMAY': {
+        const seat = (context.seatLabel ?? '').trim();
+        return seat ? normalizeFilenamePart(seat) : MISSING;
+      }
+      case 'PHONG': // legacy patterns still in DB
+        return normalizeFilenamePart(context.roomLabel);
       default:
-        // Unreachable: the DTO rejects unknown tokens before a row is
-        // written. Left as the token's own name rather than dropped, so a
-        // pattern that somehow got past validation is obvious on screen.
         return MISSING;
     }
   });

@@ -5,8 +5,14 @@ export type SetupStepId = 'info' | 'roster' | 'folder' | 'exam' | 'review';
 export type SetupInfoDraft = {
   examType: string;
   roomId: string;
-  startLocal: string;
-  endLocal: string;
+  /** `YYYY-MM-DD` */
+  examDate: string;
+  /** 0 = chưa chọn */
+  startPeriod: number;
+  /** 0 = chưa chọn */
+  endPeriod: number;
+  /** 0 = chưa chọn; 45/60/75/90 khi đã chọn */
+  durationMinutes: number;
 };
 
 export type SetupDraft = {
@@ -72,8 +78,10 @@ function infoEqual(a: SetupInfoDraft, b: SetupInfoDraft): boolean {
   return (
     a.examType === b.examType &&
     a.roomId === b.roomId &&
-    a.startLocal === b.startLocal &&
-    a.endLocal === b.endLocal
+    a.examDate === b.examDate &&
+    a.startPeriod === b.startPeriod &&
+    a.endPeriod === b.endPeriod &&
+    a.durationMinutes === b.durationMinutes
   );
 }
 

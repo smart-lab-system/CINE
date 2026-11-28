@@ -56,13 +56,13 @@ export class SubmissionBrowseService {
       status: row.extract_status,
       entryCount: row.extract_entry_count,
       error: row.extract_error,
-      // Mẫu deliverable (`{MSSV}-{TEN}.java`) phải render giống submission-download.
+      // Mẫu deliverable (`{MSSV}-{HOTEN}.java`) phải render giống submission-download.
       fileName: row.required_filename
         ? renderFilename(row.required_filename, {
             studentMssv: row.student_mssv,
             studentName: row.student_name_input ?? '',
-            roomName: row.room_name ?? '',
-            machineName: null,
+            seatLabel: '',
+            roomLabel: row.room_name ?? '',
           })
         : null,
       tree: null,

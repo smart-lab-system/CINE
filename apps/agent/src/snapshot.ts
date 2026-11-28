@@ -39,7 +39,105 @@ export const IGNORED_DIRECTORIES = new Set([
   '.next',
   '.idea',
   '.vscode',
+  // Java / Spring / Gradle / IDE build output (pack + snapshot)
+  '.gradle',
+  'out',
+  'bin',
+  '.settings',
+  'classes',
+  'coverage',
+  '.turbo',
+  '.cache',
+  '.svn',
 ]);
+
+/** Trần file lẻ khi đóng gói bài nộp chính thức (lớn hơn snapshot backup). */
+export const PACK_MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+/** Trần tổng khi đóng gói bài nộp chính thức. */
+export const PACK_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+
+export type CollectPackResult =
+  | { ok: true; files: SnapshotFile[] }
+  | { ok: false; reason: string };
+
+/**
+ * Thu file để đóng gói deliverable `.zip`/`.rar` - blocklist thư mục, không
+ * whitelist đuôi (khác snapshot). Vượt trần → fail rõ, không bỏ lặng.
+ */
+export function collectPackFiles(
+  workspaceDir: string,
+  opts: {
+    /** Tên file ở root không đưa vào archive (archive đang đóng, deliverable khác, INSTRUCTIONS…). */
+    excludeRootNames: ReadonlySet<string>;
+    /** Thư mục thêm ngoài IGNORED_DIRECTORIES (vd. `de-thi`). */
+    extraIgnoredDirectories?: ReadonlySet<string>;
+  },
+): CollectPackResult {
+  const files: SnapshotFile[] = [];
+  let total = 0;
+  const ignoredDirs = opts.extraIgnoredDirectories
+    ? new Set([...IGNORED_DIRECTORIES, ...opts.extraIgnoredDirectories])
+    : IGNORED_DIRECTORIES;
+
+  const walk = (dir: string, prefix: string): string | null => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    for (const entry of entries) {
+      if (entry.isSymbolicLink()) {
+        continue;
+      }
+
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const absolute = path.join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        if (!ignoredDirs.has(entry.name)) {
+          const err = walk(absolute, relative);
+          if (err) return err;
+        }
+        continue;
+      }
+
+      if (!entry.isFile()) {
+        continue;
+      }
+
+      if (!prefix && opts.excludeRootNames.has(entry.name)) {
+        continue;
+      }
+
+      let size: number;
+      try {
+        size = fs.statSync(absolute).size;
+      } catch {
+        continue;
+      }
+
+      if (size > PACK_MAX_FILE_BYTES) {
+        return `File quá lớn để đóng gói (${relative}, trần ${PACK_MAX_FILE_BYTES} byte).`;
+      }
+      if (total + size > PACK_MAX_TOTAL_BYTES) {
+        return `Tổng dung lượng đóng gói vượt trần ${PACK_MAX_TOTAL_BYTES} byte.`;
+      }
+
+      total += size;
+      files.push({ relativePath: relative, absolutePath: absolute, size });
+    }
+    return null;
+  };
+
+  const err = walk(workspaceDir, '');
+  if (err) {
+    return { ok: false, reason: err };
+  }
+  return { ok: true, files };
+}
 
 /**
  * Extensions a submission could plausibly be - documents, code, data and

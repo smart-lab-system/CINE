@@ -33,7 +33,12 @@ export interface CreateAccountInput {
 
 export interface UpdateAccountInput {
   name: string;
+  email: string;
   role: AccountRoleOption;
+}
+
+export interface ChangePasswordInput {
+  password: string;
 }
 
 /**
@@ -94,6 +99,17 @@ export async function createAccount(body: CreateAccountInput): Promise<void> {
 
 export async function updateAccount(id: string, body: UpdateAccountInput): Promise<void> {
   const { error, response } = await apiClient.PATCH('/accounts/{id}', {
+    params: { path: { id } },
+    body,
+  });
+  await throwIfFailed(error, response);
+}
+
+export async function changeAccountPassword(
+  id: string,
+  body: ChangePasswordInput,
+): Promise<void> {
+  const { error, response } = await apiClient.PATCH('/accounts/{id}/password', {
     params: { path: { id } },
     body,
   });

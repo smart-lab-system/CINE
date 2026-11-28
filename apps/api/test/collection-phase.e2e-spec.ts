@@ -87,6 +87,9 @@ describe('Collection phase (e2e)', () => {
         // tương lai để `isAcceptingUploads` còn mở theo đồng hồ thật.
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        startPeriod: 1,
+        endPeriod: 2,
+        durationMinutes: 90,
         requiredFilenames: options.requiredFilenames ?? ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
@@ -467,6 +470,9 @@ describe('Collection phase (e2e)', () => {
         examType: 'TK',
         startTime: session.endTime.toISOString(),
         endTime: new Date(session.endTime.getTime() + 3_600_000).toISOString(),
+        startPeriod: 1,
+        endPeriod: 2,
+        durationMinutes: 90,
         requiredFilenames: ['Cau1.docx'],
       });
 

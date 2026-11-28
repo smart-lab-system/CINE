@@ -17,6 +17,7 @@ import { Roles } from '../auth/roles.decorator';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { SearchAccountsDto } from './dto/search-accounts.dto';
 
 @Controller('accounts')
@@ -57,6 +58,20 @@ export class AccountsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateAccountDto) {
     return this.accounts.update(id, dto);
+  }
+
+  /**
+   * Đặt lại mật khẩu - tách khỏi PATCH profile (`UpdateAccountDto` không
+   * có password). `:id/password` là literal segment nên không tranh
+   * chấp với `:id` ở trên.
+   */
+  @Patch(':id/password')
+  @HttpCode(204)
+  async changePassword(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.accounts.changePassword(id, dto);
   }
 
   /**

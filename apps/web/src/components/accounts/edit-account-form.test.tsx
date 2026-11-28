@@ -14,6 +14,7 @@ function selectRole(name: RegExp) {
 describe('EditAccountForm', () => {
   const defaultValues = {
     name: 'Existing User',
+    email: 'existing@example.com',
     role: 'teacher' as const,
   };
 
@@ -23,10 +24,11 @@ describe('EditAccountForm', () => {
     );
 
     expect(screen.getByLabelText(/họ tên/i)).toHaveValue('Existing User');
+    expect(screen.getByLabelText(/^email$/i)).toHaveValue('existing@example.com');
     expect(screen.getByRole('combobox', { name: /vai trò/i })).toHaveTextContent(/giảng viên/i);
   });
 
-  it('submits the edited values', async () => {
+  it('submits the edited values including email', async () => {
     const onSubmit = vi.fn();
     render(
       <EditAccountForm defaultValues={defaultValues} onSubmit={onSubmit} onCancel={vi.fn()} />,
@@ -35,12 +37,16 @@ describe('EditAccountForm', () => {
     fireEvent.change(screen.getByLabelText(/họ tên/i), {
       target: { value: 'Updated Name' },
     });
+    fireEvent.change(screen.getByLabelText(/^email$/i), {
+      target: { value: 'updated@example.com' },
+    });
     selectRole(/quản trị/i);
     fireEvent.click(screen.getByRole('button', { name: /lưu/i }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       name: 'Updated Name',
+      email: 'updated@example.com',
       role: 'admin',
     });
   });

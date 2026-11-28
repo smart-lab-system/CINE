@@ -117,14 +117,37 @@ describe('Accounts (e2e)', () => {
     ).toBe(true);
   });
 
-  it('updates an account', async () => {
+  it('updates an account including email', async () => {
+    const newEmail = `managed_renamed_${Date.now()}@example.com`;
     const response = await request(app.getHttpServer())
       .patch(`/accounts/${createdAccountId}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ name: 'Managed User (Updated)' });
+      .send({ name: 'Managed User (Updated)', email: newEmail });
 
     expect(response.status).toBe(200);
     expect(response.body.name).toBe('Managed User (Updated)');
+    expect(response.body.email).toBe(newEmail);
+  });
+
+  it('changes an account password so the new one can log in', async () => {
+    const newPassword = 'fresh-horse-battery';
+    const change = await request(app.getHttpServer())
+      .patch(`/accounts/${createdAccountId}/password`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ password: newPassword });
+
+    expect(change.status).toBe(204);
+
+    const getRes = await request(app.getHttpServer())
+      .get(`/accounts/${createdAccountId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(getRes.status).toBe(200);
+
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: getRes.body.email, password: newPassword });
+    expect(login.status).toBe(200);
+    expect(login.body.accessToken).toBeDefined();
   });
 
   it('deletes an account with nothing referencing it', async () => {

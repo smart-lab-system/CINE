@@ -30,6 +30,7 @@ import type {
 import { sendAccessRequest, type AccessErrorCode } from './access-request';
 import { restoreBackup, startSnapshotLoop } from './backup';
 import { downloadMaterials, writeInstructions } from './exam-materials';
+import { packSubmissionArchives } from './pack-submission-archive';
 import {
   formatSummary,
   uploadAllDeliverables,
@@ -878,6 +879,19 @@ export class SessionController extends EventEmitter {
     this.notify(announcement.title, announcement.body);
 
     try {
+      // Deliverable .zip/.rar: đóng gói workspace (ignore node_modules/target/…)
+      // trước khi đọc file upload - SV không cần tự nén.
+      const packResult = await packSubmissionArchives(
+        this.workspaceDir!,
+        this.requiredDeliverables,
+      );
+      for (const name of packResult.packed) {
+        this.log(`Đã đóng gói bài nộp: ${name}`);
+      }
+      for (const fail of packResult.failed) {
+        this.log(`[CẢNH BÁO] Không đóng gói được ${fail.filename}: ${fail.reason}`);
+      }
+
       const summary = await uploadAllDeliverables({
         socket: this.socket!,
         examSessionId: this.examSessionId,
@@ -971,9 +985,8 @@ export class SessionController extends EventEmitter {
 // Small local helpers
 // ---------------------------------------------------------------------------
 
-/** The hostname, or undefined if the OS will not say. Never fatal - a
- *  pattern using {SOMAY} renders it as UNKNOWN, which is visible, and a
- *  pattern that does not use it never notices. */
+/** Hostname for server lookup of computer.location / {SOMAY} fallback.
+ *  Never fatal - missing hostname still lets join proceed. */
 function machineName(): string | undefined {
   try {
     const name = os.hostname().trim();

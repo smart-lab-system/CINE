@@ -92,6 +92,9 @@ describe('Submission collection (e2e)', () => {
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
         endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        startPeriod: 1,
+        endPeriod: 2,
+        durationMinutes: 90,
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);

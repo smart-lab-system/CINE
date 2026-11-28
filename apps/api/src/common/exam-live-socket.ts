@@ -24,16 +24,20 @@ export interface AgentSocketIdentity {
   homeClassId: string;
   homeTeacherId: string;
   /**
-   * Tên máy trạm, như agent báo lúc join — hoặc `null` nếu không báo.
+   * Tên máy trạm (hostname), như agent báo lúc join — hoặc `null` nếu không báo.
+   * Dùng để tra cứu / fallback `{SOMAY}`, không còn là giá trị trực tiếp của token.
    *
    * KHÔNG đưa vào phép kiểm falsy bên dưới cùng bốn trường kia:
    * `null` là một giá trị HỢP LỆ ("không có tên máy"), không phải dấu hiệu
-   * identity chưa đọc được. Gộp chung sẽ từ chối oan mọi phiên không dùng
-   * token `{SOMAY}` — điều mà spec
-   * 2026-09-21-archive-content-validation-design.md §5.2 gọi là đúng cái
-   * bẫy cần tránh, chỉ khác chỗ nổ ra.
+   * identity chưa đọc được.
    */
   machineName: string | null;
+  /**
+   * Nhãn ghế đã resolve cho `{SOMAY}` lúc join: `computer.location` hoặc
+   * `mãPhòng_hostname`. Stash trên socket để archive-check lúc confirm
+   * không phải tra lại (và không render `UNKNOWN` oan).
+   */
+  seatLabel: string;
 }
 
 export function readAgentIdentity(client: Socket): AgentSocketIdentity | null {
@@ -46,7 +50,17 @@ export function readAgentIdentity(client: Socket): AgentSocketIdentity | null {
     return null;
   }
   const machineName = (client.data?.machineName as string | null | undefined) ?? null;
-  return { examSessionId, studentId, fullName, homeClassId, homeTeacherId, machineName };
+  const seatLabel =
+    typeof client.data?.seatLabel === 'string' ? (client.data.seatLabel as string) : '';
+  return {
+    examSessionId,
+    studentId,
+    fullName,
+    homeClassId,
+    homeTeacherId,
+    machineName,
+    seatLabel,
+  };
 }
 
 /**

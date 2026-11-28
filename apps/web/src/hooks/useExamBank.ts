@@ -28,6 +28,19 @@ export function useCourseExams(courseId: string | null) {
   });
 }
 
+/** Gộp đề của nhiều môn (kho đề lọc client-side). */
+export function useCourseExamsForCourses(courseIds: string[]) {
+  const key = [...courseIds].sort();
+  return useQuery({
+    queryKey: ['exam-bank', 'list-many', key],
+    queryFn: async () => {
+      const lists = await Promise.all(key.map((id) => listCourseExams(id)));
+      return lists.flat();
+    },
+    enabled: key.length > 0,
+  });
+}
+
 export function useCourseExam(examId: string | null) {
   return useQuery({
     queryKey: ['exam-bank', 'detail', examId],

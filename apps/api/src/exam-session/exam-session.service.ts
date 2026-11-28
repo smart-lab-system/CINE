@@ -229,6 +229,9 @@ export class ExamSessionService {
               examType: dto.examType,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
+              startPeriod: dto.startPeriod,
+              endPeriod: dto.endPeriod,
+              durationMinutes: dto.durationMinutes,
               // create → scheduled; "Mở phiên thi" freezes roster and
               // flips to active (spec 2026-10-18-exam-session-setup-edit-flow).
               // agent:join still requires active + frozen roster.
@@ -435,7 +438,10 @@ export class ExamSessionService {
       dto.roomId === undefined &&
       dto.roomName === undefined &&
       dto.startTime === undefined &&
-      dto.endTime === undefined
+      dto.endTime === undefined &&
+      dto.startPeriod === undefined &&
+      dto.endPeriod === undefined &&
+      dto.durationMinutes === undefined
     ) {
       return this.findByIdForOwner(session.id, session.teacherId);
     }
@@ -452,6 +458,18 @@ export class ExamSessionService {
     const endTime = dto.endTime ?? session.endTime;
     if (!(endTime > startTime)) {
       throw new BadRequestException('endTime phải sau startTime.');
+    }
+
+    const startPeriod =
+      dto.startPeriod !== undefined ? dto.startPeriod : session.startPeriod;
+    const endPeriod =
+      dto.endPeriod !== undefined ? dto.endPeriod : session.endPeriod;
+    if (
+      startPeriod !== null &&
+      endPeriod !== null &&
+      endPeriod < startPeriod
+    ) {
+      throw new BadRequestException('endPeriod phải lớn hơn hoặc bằng startPeriod.');
     }
 
     if (!session.classId) {
@@ -475,6 +493,12 @@ export class ExamSessionService {
       roomName: roomSnap.roomName,
       startTime,
       endTime,
+      ...(dto.startPeriod !== undefined || dto.endPeriod !== undefined
+        ? { startPeriod, endPeriod }
+        : {}),
+      ...(dto.durationMinutes !== undefined
+        ? { durationMinutes: dto.durationMinutes }
+        : {}),
     });
 
     return this.findByIdForOwner(session.id, session.teacherId);
@@ -707,6 +731,9 @@ export class ExamSessionService {
       item.examType = session.examType;
       item.startTime = session.startTime;
       item.endTime = session.endTime;
+      item.startPeriod = session.startPeriod ?? null;
+      item.endPeriod = session.endPeriod ?? null;
+      item.durationMinutes = session.durationMinutes ?? null;
       item.status = session.status;
       item.rosterFrozen = frozenIds.has(session.id);
       return item;
@@ -1155,6 +1182,9 @@ export class ExamSessionService {
     dto.semesterName = session.semesterName;
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
+    dto.startPeriod = session.startPeriod ?? null;
+    dto.endPeriod = session.endPeriod ?? null;
+    dto.durationMinutes = session.durationMinutes ?? null;
     dto.status = session.status;
     dto.completedAt = session.completedAt ?? null;
     dto.completedBy = session.completedBy ?? null;

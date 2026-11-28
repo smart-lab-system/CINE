@@ -71,7 +71,7 @@ describe('Lượt phản biện chạy thật (e2e)', () => {
     start.setUTCHours(8, 0, 0, 0);
     const end = new Date(start);
     end.setUTCHours(10);
-    return { startTime: start.toISOString(), endTime: end.toISOString() };
+    return { startTime: start.toISOString(), endTime: end.toISOString(), startPeriod: 1, endPeriod: 2, durationMinutes: 90 };
   }
 
   /** Một phiên có một bài đã thu, kèm id tài liệu đề bài đã tải lên thật. */

@@ -5,6 +5,7 @@ import * as argon2 from 'argon2';
 import { AccountEntity, AccountRole } from '../identity/entities/account.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { SearchAccountsDto } from './dto/search-accounts.dto';
 
 export interface AccountView {
@@ -101,6 +102,19 @@ export class AccountsService {
     });
 
     return this.toView(await this.findOrThrow(id));
+  }
+
+  /**
+   * Đặt lại mật khẩu (admin). Tách khỏi `update()` để PATCH profile không
+   * vô tình nhận password, và để UI có thao tác riêng rõ ràng.
+   */
+  async changePassword(id: string, dto: ChangePasswordDto): Promise<void> {
+    await this.findOrThrow(id);
+
+    const passwordHash = await argon2.hash(dto.password, {
+      type: argon2.argon2id,
+    });
+    await this.accounts.update(id, { passwordHash });
   }
 
   async remove(id: string): Promise<void> {

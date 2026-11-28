@@ -72,6 +72,9 @@ describe('Session lifecycle (e2e)', () => {
         // cần một cửa sổ hợp lệ: bắt đầu sau 5 phút, dài 60 phút (>= 15 phút tối thiểu).
         startTime: new Date(Date.now() + 300_000).toISOString(),
         endTime: new Date(Date.now() + 3_900_000).toISOString(),
+        startPeriod: 1,
+        endPeriod: 2,
+        durationMinutes: 90,
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);

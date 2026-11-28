@@ -71,6 +71,12 @@ vi.mock('@/hooks/useExamSession', () => ({
 vi.mock('@/hooks/useExamBank', () => ({
   useCourseExams: () => ({ data: [], isLoading: false, isError: false }),
   useCourseExam: () => ({ data: undefined, isLoading: false, isError: false }),
+  useExamBankCourses: () => ({ data: [], isLoading: false }),
+  useExamBankMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false },
+    update: { mutateAsync: vi.fn() },
+    remove: { mutateAsync: vi.fn() },
+  }),
 }));
 
 vi.mock('@/hooks/useGrading', () => ({
@@ -123,8 +129,14 @@ vi.mock('@/hooks/useTeaching', () => ({
 }));
 
 function session(overrides: Record<string, unknown> = {}) {
-  const start = new Date(Date.now() + 3_600_000);
-  const end = new Date(Date.now() + 7_200_000);
+  // +14 ngày, tiết 1-3 → 6h30-9h00; khớp bảng tiết và không dính backdate.
+  const day = new Date();
+  day.setDate(day.getDate() + 14);
+  day.setHours(0, 0, 0, 0);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ymd = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+  const start = new Date(`${ymd}T06:30:00`);
+  const end = new Date(`${ymd}T08:00:00`);
   return {
     id: 'session-1',
     name: 'Giữa kỳ Cấu trúc dữ liệu',
@@ -139,6 +151,9 @@ function session(overrides: Record<string, unknown> = {}) {
     examType: 'TK',
     startTime: start.toISOString(),
     endTime: end.toISOString(),
+    startPeriod: 1,
+    endPeriod: 3,
+    durationMinutes: 90,
     status: 'scheduled',
     completedAt: null,
     completedBy: null,
@@ -179,7 +194,8 @@ describe('ExamSessionSetupPage', () => {
   it('đổi bước khi giờ chưa hợp lệ và vẫn hiện tên phiên', () => {
     render(<ExamSessionSetupPage />);
 
-    fireEvent.change(screen.getByLabelText('Kết thúc'), { target: { value: '2000-01-01T00:00' } });
+    // Bỏ thời gian thi → nháp info không sẵn sàng ghi.
+    fireEvent.change(screen.getByLabelText('Thời lượng thi'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Đề thi & Rubric' }));
 
     expect(screen.getByRole('dialog', { name: 'Xác nhận thiết lập?' })).toBeInTheDocument();
@@ -206,8 +222,10 @@ describe('ExamSessionSetupPage', () => {
     expect(screen.queryByRole('button', { name: 'Lưu nháp' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Hoàn tất' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Loại thi')).toBeDisabled();
-    expect(screen.getByLabelText('Bắt đầu')).toBeDisabled();
-    expect(screen.getByLabelText('Kết thúc')).toBeDisabled();
+    expect(screen.getByLabelText('Ngày thi')).toBeDisabled();
+    expect(screen.getByLabelText('Tiết bắt đầu')).toBeDisabled();
+    expect(screen.getByLabelText('Tiết kết thúc')).toBeDisabled();
+    expect(screen.getByLabelText('Thời lượng thi')).toBeDisabled();
     const room = screen.getAllByRole('combobox').find((el) => el.tagName === 'BUTTON');
     expect(room).toBeDisabled();
     expect(screen.getByText('Cấu trúc dữ liệu')).toBeInTheDocument();
@@ -257,8 +275,10 @@ describe('ExamSessionSetupPage', () => {
       info: {
         examType: 'GK',
         roomId: 'room-1',
-        startLocal: '2099-01-01T08:00',
-        endLocal: '2099-01-01T10:00',
+        examDate: '2099-01-01',
+        startPeriod: 1,
+        endPeriod: 3,
+        durationMinutes: 90,
       },
     });
 

@@ -40,7 +40,8 @@ import { toDeliverableFormValues } from './_components/RequiredDeliverablesEdito
 import { reviewChecklist, saveDraftPlan, type SaveDraftPlan } from './_components/setup-commit';
 import { finishPlan } from './_components/setup-commit';
 import { parseStep, stepIndex, SETUP_STEPS } from './_components/setup-steps';
-import { toLocalInputValue, type SetupServerBaseline, type SetupStepId } from './_components/setup-draft';
+import type { SetupServerBaseline, SetupStepId } from './_components/setup-draft';
+import { infoDraftFromSession } from './_components/setup-info-schedule';
 import { formatSectionAndNominalClass } from './_components/section-class-label';
 
 function formatDateTime(iso: string): string {
@@ -119,12 +120,7 @@ function SetupHub({ sessionId }: { sessionId: string }) {
   const server = useMemo<SetupServerBaseline | null>(() => {
     if (!session) return null;
     return {
-      info: {
-        examType: session.examType,
-        roomId: session.roomId ?? '',
-        startLocal: toLocalInputValue(session.startTime),
-        endLocal: toLocalInputValue(session.endTime),
-      },
+      info: infoDraftFromSession(session),
       folder: toDeliverableFormValues(session.requiredDeliverables),
       rubricId: session.rubricId,
     };
@@ -263,12 +259,7 @@ function SetupBody({
 
   const server = useMemo<SetupServerBaseline>(
     () => ({
-      info: {
-        examType: session.examType,
-        roomId: session.roomId ?? '',
-        startLocal: toLocalInputValue(session.startTime),
-        endLocal: toLocalInputValue(session.endTime),
-      },
+      info: infoDraftFromSession(session),
       folder: toDeliverableFormValues(session.requiredDeliverables),
       rubricId: session.rubricId,
     }),

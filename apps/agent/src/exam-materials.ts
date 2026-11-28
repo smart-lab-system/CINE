@@ -199,14 +199,19 @@ export function renderInstructions(input: InstructionsInput): string {
   for (const { filename, entries } of input.requiredDeliverables) {
     lines.push(`  * ${filename}`);
 
-    // `.rar`: sự thật TĨNH về đuôi file - tự kiểm ở đây, không nhận qua
-    // tham số. Không có cách nào hợp lệ tạo trước một RAR rỗng (xem
-    // workspace-files.ts) - sinh viên PHẢI biết trước, không phải lúc
-    // đang bối rối nhìn một file không mở ra được.
-    if (archiveKindOf(filename) === 'rar') {
+    // Archive: agent tự đóng gói workspace lúc nộp (ignore node_modules/…).
+    // `.rar` cần WinRAR trên máy lab; không bắt SV tự nén tay.
+    if (archiveKindOf(filename) === 'zip') {
       lines.push(
-        '      - Hệ thống KHÔNG tạo trước được file .rar này (không có công cụ',
-        '        nén .rar cài sẵn) - tự nén bằng WinRAR, đặt đúng tên như trên.',
+        '      - Lúc nộp bài, agent tự đóng gói thư mục bài làm vào file này',
+        '        (bỏ node_modules, target, …). Cứ làm bài trong thư mục này.',
+      );
+    } else if (archiveKindOf(filename) === 'rar') {
+      lines.push(
+        '      - Lúc nộp bài, agent tự đóng gói thư mục bài làm vào file này',
+        '        (bỏ node_modules, target, …). Máy thi cần có WinRAR.',
+        '      - Hệ thống không tạo sẵn file .rar rỗng lúc vào phòng - không cần',
+        '        tự nén tay; agent sẽ tạo lúc nộp nếu WinRAR có sẵn.',
       );
     }
 

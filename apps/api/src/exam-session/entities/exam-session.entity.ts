@@ -190,6 +190,23 @@ export class ExamSessionEntity extends BaseEntity {
   @Column({ name: 'end_time', type: 'timestamptz' })
   endTime!: Date;
 
+  /**
+   * Tiết học 1-16 (UX ngày + tiết). Null = phiên cũ tạo bằng giờ tự do.
+   * start_time/end_time vẫn là nguồn sự thật cho lịch / finalize.
+   */
+  @Column({ name: 'start_period', type: 'smallint', nullable: true })
+  startPeriod!: number | null;
+
+  @Column({ name: 'end_period', type: 'smallint', nullable: true })
+  endPeriod!: number | null;
+
+  /**
+   * Thời gian thi (phút): 45 / 60 / 75 / 90. Null = phiên cũ.
+   * end_time thường = start_time + duration_minutes.
+   */
+  @Column({ name: 'duration_minutes', type: 'smallint', nullable: true })
+  durationMinutes!: number | null;
+
   @Column({ name: 'submission_rule', type: 'jsonb', default: {} })
   submissionRule!: Record<string, unknown>;
 
