@@ -1,4 +1,5 @@
 import type { CourseExamSummary, CourseExamType } from '@/lib/api/exam-bank';
+import { formatShortSemesterLabel } from '@/lib/master-data-defaults';
 import { foldText } from '@/lib/session-list';
 import { resolveSemester } from '@/lib/resolve-semester';
 
@@ -33,7 +34,7 @@ export function resolveExamTerm(
   return {
     termSemesterId: hit.id,
     termAcademicYearId: sem?.academicYearId ?? null,
-    termLabel: sem?.name.trim() || '-',
+    termLabel: formatShortSemesterLabel(sem?.name),
   };
 }
 

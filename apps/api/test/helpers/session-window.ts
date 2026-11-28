@@ -3,8 +3,8 @@
  *
  * 1. `MAX_BACKDATE_MINUTES = 30` (create-exam-session.dto.ts) — `startTime`
  *    không được lùi quá 30 phút so với hiện tại, nếu không là 400.
- * 2. `ex_exam_session_teacher_gap` (migration `1789350000000`) — hai phiên
- *    của CÙNG một giảng viên phải cách nhau >= 30 phút, nếu không là 409.
+ * 2. `ex_exam_session_teacher_gap` (migration `1791200000000`) — hai phiên
+ *    của CÙNG một giảng viên phải cách nhau >= 5 phút, nếu không là 409.
  *
  * Hai luật ấy kẹp nhau: phiên thứ hai của một người KHÔNG thể nằm trong quá
  * khứ, nên nó phải đi về tương lai. Trước khi có luật 2, mọi spec dùng chung
@@ -18,7 +18,7 @@
 let cursor = 0;
 
 const HOUR_MS = 60 * 60 * 1000;
-/** Mỗi phiên sau lùi thêm 2 giờ; phiên dài 90 phút → hở ≥ 30 phút. */
+/** Mỗi phiên sau lùi thêm 2 giờ; phiên dài 90 phút → hở ≥ 5 phút. */
 const STRIDE_MS = 2 * HOUR_MS;
 /** Khớp `durationMinutes` / EXAM_DURATION_OPTIONS trên DTO + service. */
 const EXAM_DURATION_MS = 90 * 60 * 1000;

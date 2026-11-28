@@ -26,6 +26,7 @@ import {
 import { useStatusClock } from '@/lib/use-status-clock';
 import { useSetupDraft } from './SetupDraftProvider';
 import type { SetupInfoDraft } from './setup-draft';
+import { scheduleFromStartTimeAndDuration } from './setup-info-schedule';
 
 const PERIOD_OPTIONS = Array.from(
   { length: MAX_SCHOOL_PERIOD - MIN_SCHOOL_PERIOD + 1 },
@@ -79,15 +80,24 @@ export function SessionInfoStep({
   );
   const reason = setup.errorStep === 'info' ? setup.blockReason : null;
   const apiMessage = setup.apiError?.step === 'info' ? setup.apiError.message : null;
-  const schedulePreview =
-    shown.examDate && shown.startPeriod && shown.endPeriod && shown.durationMinutes
-      ? scheduleFromPeriodsAndDuration(
-          shown.examDate,
-          shown.startPeriod,
-          shown.endPeriod,
-          shown.durationMinutes,
-        )
-      : null;
+  const schedulePreview = (() => {
+    if (!shown.examDate || !shown.durationMinutes) return null;
+    if (shown.startTimeOfDay) {
+      return scheduleFromStartTimeAndDuration(
+        shown.examDate,
+        shown.startTimeOfDay,
+        shown.durationMinutes,
+      );
+    }
+    if (!shown.startPeriod || !shown.endPeriod) return null;
+    return scheduleFromPeriodsAndDuration(
+      shown.examDate,
+      shown.startPeriod,
+      shown.endPeriod,
+      shown.durationMinutes,
+    );
+  })();
+  const skipStartPeriod = Boolean(shown.startTimeOfDay);
 
   return (
     <div className="flex flex-col gap-6">
@@ -177,19 +187,35 @@ export function SessionInfoStep({
             onChange={(event) => update({ examDate: event.target.value })}
           />
         </FormField>
+        <FormField
+          id="setup-start-time"
+          label="Thời gian bắt đầu"
+          hint="Tạm thời: nếu nhập thì bỏ qua tiết bắt đầu."
+        >
+          <Input
+            id="setup-start-time"
+            type="time"
+            aria-label="Thời gian bắt đầu"
+            value={shown.startTimeOfDay ?? ''}
+            disabled={!mutable}
+            onChange={(event) => update({ startTimeOfDay: event.target.value })}
+          />
+        </FormField>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField id="setup-start-period" label="Tiết bắt đầu">
             <select
               id="setup-start-period"
               aria-label="Tiết bắt đầu"
-              disabled={!mutable}
+              disabled={!mutable || skipStartPeriod}
               value={shown.startPeriod || ''}
               onChange={(event) =>
                 update({ startPeriod: event.target.value ? Number(event.target.value) : 0 })
               }
               className="h-12 rounded-md border border-input bg-surface px-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <option value="">Chọn tiết bắt đầu</option>
+              <option value="">
+                {skipStartPeriod ? 'Bỏ qua - dùng giờ tường' : 'Chọn tiết bắt đầu'}
+              </option>
               {PERIOD_OPTIONS.map((period) => (
                 <option key={period} value={period}>
                   {periodSelectLabel(period)}

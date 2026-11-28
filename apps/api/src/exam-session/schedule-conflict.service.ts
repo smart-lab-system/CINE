@@ -82,11 +82,11 @@ const CLASS: ClashTarget = { column: 'class_id', table: 'class' };
  * Khoảng cách tối thiểu giữa hai phiên của CÙNG một giảng viên, tính từ
  * `end_time` của phiên trước tới `start_time` của phiên sau.
  *
- * Phải khớp con số 30 trong `examcollect.teacher_busy_range()` (migration
- * `1789350000000-TeacherScheduleGap`). Đổi một chỗ mà quên chỗ kia thì lớp
- * kiểm này lệch khỏi ràng buộc — đúng thứ mà doc ở đầu file cấm.
+ * Phải khớp con số trong `examcollect.teacher_busy_range()` (migration
+ * `1791200000000-TeacherScheduleGapFiveMinutes`). Đổi một chỗ mà quên chỗ
+ * kia thì lớp kiểm này lệch khỏi ràng buộc — đúng thứ mà doc ở đầu file cấm.
  */
-export const TEACHER_GAP_MINUTES = 30;
+export const TEACHER_GAP_MINUTES = 5;
 
 @Injectable()
 export class ScheduleConflictService {

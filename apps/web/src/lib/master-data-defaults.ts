@@ -85,6 +85,56 @@ export function semesterNameFromCodeAndYear(
   return year ? `${label} năm học ${year}` : label;
 }
 
+const SHORT_SEMESTER_BY_ORDINAL: Record<string, SemesterCode> = {
+  '1': 'HK1',
+  '2': 'HK2',
+  hè: 'HE',
+  he: 'HE',
+};
+
+/**
+ * Rút gọn nhãn học kỳ cho cột bảng.
+ * Ví dụ: "Học kỳ 1 năm học 2026 - 2027" → "HK1 (2026-2027)".
+ */
+export function formatShortSemesterLabel(
+  name: string | null | undefined,
+): string {
+  const raw = name?.trim();
+  if (!raw) return '-';
+  if (raw === '-') return raw;
+
+  const normalizeYears = (a: string, b: string) => `${a}-${b}`;
+
+  const alreadyShort = raw.match(
+    /^(HK[12]|HE)\s*\((\d{4})\s*[-–—]\s*(\d{4})\)$/i,
+  );
+  if (alreadyShort) {
+    return `${alreadyShort[1].toUpperCase()} (${normalizeYears(alreadyShort[2], alreadyShort[3])})`;
+  }
+
+  const codeYear = raw.match(/^(HK[12]|HE)\s+(\d{4})\s*[-–—]\s*(\d{4})$/i);
+  if (codeYear) {
+    return `${codeYear[1].toUpperCase()} (${normalizeYears(codeYear[2], codeYear[3])})`;
+  }
+
+  const longWithYear = raw.match(
+    /^Học kỳ\s+(1|2|[Hh][èe])\s+(?:năm học\s+)?(\d{4})\s*[-–—]\s*(\d{4})$/i,
+  );
+  if (longWithYear) {
+    const ordinal = longWithYear[1].toLowerCase();
+    const code = SHORT_SEMESTER_BY_ORDINAL[ordinal] ?? longWithYear[1];
+    return `${code} (${normalizeYears(longWithYear[2], longWithYear[3])})`;
+  }
+
+  const labelOnly = raw.match(/^Học kỳ\s+(1|2|[Hh][èe])$/i);
+  if (labelOnly) {
+    const ordinal = labelOnly[1].toLowerCase();
+    return SHORT_SEMESTER_BY_ORDINAL[ordinal] ?? raw;
+  }
+
+  return raw;
+}
+
 export function nominalClassNameFromCode(code: string): string {
   const trimmed = code.trim();
   return trimmed ? `Lớp ${trimmed}` : '';

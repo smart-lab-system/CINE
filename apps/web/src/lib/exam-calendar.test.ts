@@ -83,14 +83,14 @@ describe('findGapViolations', () => {
     status: 'scheduled',
   });
 
-  it('khe đúng 30 phút KHÔNG bị báo - cùng biên với ràng buộc DB', () => {
-    const found = findGapViolations([base('a', 8, 0, 10, 0), base('b', 10, 30, 12, 0)]);
+  it('khe đúng 5 phút KHÔNG bị báo - cùng biên với ràng buộc DB', () => {
+    const found = findGapViolations([base('a', 8, 0, 10, 0), base('b', 10, 5, 12, 0)]);
     expect(found.size).toBe(0);
   });
 
-  it('khe 15 phút bị báo, kèm đúng số phút', () => {
-    const found = findGapViolations([base('a', 8, 0, 10, 0), base('b', 10, 15, 12, 0)]);
-    expect(found.get('b')).toBe(15);
+  it('khe 3 phút bị báo, kèm đúng số phút', () => {
+    const found = findGapViolations([base('a', 8, 0, 10, 0), base('b', 10, 3, 12, 0)]);
+    expect(found.get('b')).toBe(3);
   });
 
   it('chồng giờ kẹp về 0, không trả số âm', () => {
@@ -99,8 +99,8 @@ describe('findGapViolations', () => {
   });
 
   it('không phụ thuộc thứ tự đầu vào', () => {
-    const found = findGapViolations([base('b', 10, 15, 12, 0), base('a', 8, 0, 10, 0)]);
-    expect(found.get('b')).toBe(15);
+    const found = findGapViolations([base('b', 10, 3, 12, 0), base('a', 8, 0, 10, 0)]);
+    expect(found.get('b')).toBe(3);
     expect(found.has('a')).toBe(false);
   });
 
@@ -109,7 +109,7 @@ describe('findGapViolations', () => {
     (status) => {
       const found = findGapViolations([
         { ...base('a', 8, 0, 10, 0), status },
-        base('b', 10, 15, 12, 0),
+        base('b', 10, 3, 12, 0),
       ]);
       expect(found.size).toBe(0);
     },

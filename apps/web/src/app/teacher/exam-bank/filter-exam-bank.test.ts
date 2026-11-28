@@ -66,7 +66,7 @@ describe('resolveExamTerm', () => {
     ).toEqual({
       termSemesterId: 'sem-hk1',
       termAcademicYearId: 'year-2526',
-      termLabel: 'HK1 2025-2026',
+      termLabel: 'HK1 (2025-2026)',
     });
   });
 

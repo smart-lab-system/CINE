@@ -479,7 +479,7 @@ describe('ExamSessionsListPage - chế độ xem lịch', () => {
     expect(within(grid).getByText('Giữa kỳ Lập trình Web')).toBeInTheDocument();
   });
 
-  it('hai phiên cách nhau dưới 30 phút được gắn cờ ngay trên thẻ', async () => {
+  it('hai phiên cách nhau dưới 5 phút được gắn cờ ngay trên thẻ', async () => {
     const day = new Date();
     day.setHours(8, 0, 0, 0);
     const at = (h: number, m: number) => {
@@ -491,7 +491,7 @@ describe('ExamSessionsListPage - chế độ xem lịch', () => {
       data: {
         items: [
           session({ id: 'a', name: 'Ca đầu', status: 'scheduled', startTime: at(8, 0), endTime: at(10, 0) }),
-          session({ id: 'b', name: 'Ca sát nút', status: 'scheduled', startTime: at(10, 15), endTime: at(12, 0) }),
+          session({ id: 'b', name: 'Ca sát nút', status: 'scheduled', startTime: at(10, 3), endTime: at(12, 0) }),
         ],
         total: 2,
         semesterNames: [],
@@ -502,6 +502,6 @@ describe('ExamSessionsListPage - chế độ xem lịch', () => {
     });
     switchToCalendar();
 
-    expect(await screen.findByText(/Cách phiên trước 15 phút/)).toBeInTheDocument();
+    expect(await screen.findByText(/Cách phiên trước 3 phút/)).toBeInTheDocument();
   });
 });

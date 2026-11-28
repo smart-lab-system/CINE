@@ -161,11 +161,11 @@ export function sessionVisual(
 /**
  * Khoảng cách tối thiểu giữa hai phiên của cùng một giảng viên.
  *
- * Phải khớp `TEACHER_GAP_MINUTES` ở apps/api và con số 30 trong
+ * Phải khớp `TEACHER_GAP_MINUTES` ở apps/api và con số trong
  * `examcollect.teacher_busy_range()`. Ở đây nó chỉ để BÁO, không để chặn -
  * server mới là nơi từ chối.
  */
-export const TEACHER_GAP_MINUTES = 30;
+export const TEACHER_GAP_MINUTES = 5;
 
 interface GapInput {
   id: string;
@@ -175,7 +175,7 @@ interface GapInput {
 }
 
 /**
- * Những phiên cách phiên liền trước dưới 30 phút.
+ * Những phiên cách phiên liền trước dưới TEACHER_GAP_MINUTES phút.
  *
  * Trang này chỉ hiện phiên CỦA CHÍNH giảng viên đang đăng nhập, nên mọi cặp
  * ở đây đều là "cùng một người" - không cần so `teacher_id`.

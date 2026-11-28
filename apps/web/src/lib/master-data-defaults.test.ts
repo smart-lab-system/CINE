@@ -5,6 +5,7 @@ import {
   catalogActiveStatusLabel,
   cohortYearBounds,
   facilityStatusLabel,
+  formatShortSemesterLabel,
   nominalClassNameFromCode,
   semesterNameFromCodeAndYear,
   studentStatusLabel,
@@ -21,6 +22,20 @@ describe('master-data-defaults', () => {
       'Học kỳ 1 năm học 2026-2027',
     );
     expect(semesterNameFromCodeAndYear('HE', undefined)).toBe('Học kỳ hè');
+  });
+
+  it('shortens semester labels for table cells', () => {
+    expect(formatShortSemesterLabel('Học kỳ 1 năm học 2026 - 2027')).toBe(
+      'HK1 (2026-2027)',
+    );
+    expect(formatShortSemesterLabel('Học kỳ hè năm học 2025-2026')).toBe(
+      'HE (2025-2026)',
+    );
+    expect(formatShortSemesterLabel('HK1 2025-2026')).toBe('HK1 (2025-2026)');
+    expect(formatShortSemesterLabel('HK2 (2024-2025)')).toBe('HK2 (2024-2025)');
+    expect(formatShortSemesterLabel('Học kỳ 2')).toBe('HK2');
+    expect(formatShortSemesterLabel(null)).toBe('-');
+    expect(formatShortSemesterLabel('-')).toBe('-');
   });
 
   it('builds nominal class name from code', () => {

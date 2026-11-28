@@ -108,7 +108,7 @@ describe('/teacher/rubrics/[id]', () => {
     expect(info).toHaveTextContent('Tổng số bước');
     expect(info).toHaveTextContent(/7[,.]0 điểm/);
     expect(info).toHaveTextContent('GV Demo');
-    expect(info).toHaveTextContent('Học kỳ 1 năm học 2026 - 2027');
+    expect(info).toHaveTextContent('HK1 (2026-2027)');
     expect(
       screen.getByRole('link', { name: 'Đề thi thường kỳ - CTDL - largest' }),
     ).toHaveAttribute('href', '/teacher/exam-bank/e1');
