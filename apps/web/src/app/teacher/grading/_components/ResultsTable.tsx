@@ -5,31 +5,13 @@ import { EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { StatusPill } from '@/components/status-pill';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { isMakeupSubmission } from '@/lib/grading-triage';
-import {
-  STATE_LABEL,
-  STATE_ORDER,
-  countStates,
-  errorCounts,
-  isReadingCode,
-  reasonOf,
-  scoreCell,
-  sortByState,
-  stateOf,
-  type SessionState,
-} from '@/lib/session-triage';
+import { NARROW_LIST_QUERY, useMediaQuery } from '@/hooks/useMediaQuery';
+import { STATE_LABEL, STATE_ORDER, countStates, sortByState, stateOf, type SessionState } from '@/lib/session-triage';
 import type { GradingResult } from '@/lib/api/grading';
+import { ResultCards } from './ResultCards';
+import { resultRowView } from './result-row-view';
 
 export type ResultsFilter = SessionState | 'all';
-
-function errorsText(triage: GradingResult['triage']): string {
-  const counts = errorCounts(triage);
-  if (counts === null) return '-';
-  const parts: string[] = [];
-  if (counts.counted > 0) parts.push(`${counts.counted} đã trừ`);
-  if (counts.unpriced > 0) parts.push(`${counts.unpriced} chờ giá`);
-  return parts.length > 0 ? parts.join(' · ') : 'Không lỗi nào';
-}
 
 /**
  * Danh sách bài của phiên (spec §3.3): sinh viên (MSSV là link mở hồ sơ) · trạng thái · điểm (kèm *tạm tính* /
@@ -37,6 +19,9 @@ function errorsText(triage: GradingResult['triage']): string {
  *
  * Lý do và số lỗi đọc từ `result.triage` mà danh sách đã mang sẵn (G1 §2) - không còn một request hồ sơ cho mỗi
  * bài. Bài chưa có `triage` thì KHÔNG đoán: chỉ đường mở hồ sơ.
+ *
+ * Dưới 820px mỗi bài là một thẻ (`ResultCards`), từ 820px là bảng; cả hai đọc cùng `resultRowView`. Khi từ hai bài
+ * trở lên đang hiện đều chấm bằng cách đọc mã, câu đó nói MỘT lần ở đầu danh sách thay vì lặp ở từng hàng.
  */
 export function ResultsTable({
   sessionId,
@@ -51,14 +36,12 @@ export function ResultsTable({
   filter: ResultsFilter;
   onFilterChange: (filter: ResultsFilter) => void;
 }) {
+  const narrow = useMediaQuery(NARROW_LIST_QUERY);
   const counts = countStates(results);
   const shown = sortByState(filter === 'all' ? results : results.filter((r) => stateOf(r) === filter));
-
-  const reasonCell = (r: GradingResult) => {
-    const reason = reasonOf(r);
-    if (reason !== null) return reason;
-    return stateOf(r) === 'needsYou' ? 'Mở hồ sơ để xem lý do.' : '-';
-  };
+  const views = shown.map((r) => resultRowView(r, { sessionId, sessionClassId }));
+  const sharedReadingCode = views.length >= 2 && views.every((v) => v.method === 'reading-code');
+  const showMethodChip = !sharedReadingCode;
 
   return (
     <section aria-label="Danh sách bài" className="flex flex-col gap-3">
@@ -73,10 +56,16 @@ export function ResultsTable({
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {sharedReadingCode && (
+        <p className="text-caption text-muted-foreground">Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy thử.</p>
+      )}
+
+      {views.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-4 py-6 text-small text-muted-foreground">
           Không có bài nào ở nhóm này. Chọn &quot;Tất cả&quot; để xem toàn bộ phiên.
         </p>
+      ) : narrow ? (
+        <ResultCards views={views} showMethodChip={showMethodChip} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-surface">
           <Table>
@@ -90,43 +79,34 @@ export function ResultsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shown.map((r) => {
-                const state = stateOf(r);
-                const score = scoreCell(r, state);
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/teacher/grading/${r.id}?sessionId=${sessionId}`}
-                          className="font-medium text-accent-strong hover:underline"
-                        >
-                          {r.studentMssv}
-                        </Link>
-                        <span>{r.studentName}</span>
-                        {isMakeupSubmission(r.homeClassId, sessionClassId) && (
-                          <Badge variant="info">Thi bù - {r.homeClassName ?? r.homeClassId}</Badge>
-                        )}
-                        {isReadingCode(r) ? (
-                          <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>
-                        ) : (
-                          r.pipeline === 'one_shot' && <Badge variant="outline">Bài tự luận</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusPill status={r.status} ungradableReason={r.ungradableReason} pipeline={r.pipeline} />
-                    </TableCell>
-                    <TableCell data-cell="score" className="text-right">
-                      {state === 'audit' && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
-                      <span className="font-semibold tabular-nums">{score.text}</span>{' '}
-                      <span className="text-caption text-muted-foreground">{score.tag}</span>
-                    </TableCell>
-                    <TableCell className="text-small tabular-nums">{errorsText(r.triage)}</TableCell>
-                    <TableCell className="max-w-[360px] text-small text-muted-foreground">{reasonCell(r)}</TableCell>
-                  </TableRow>
-                );
-              })}
+              {views.map((v) => (
+                <TableRow key={v.id}>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link href={v.href} className="font-medium text-accent-strong hover:underline">
+                        {v.mssv}
+                      </Link>
+                      <span>{v.name}</span>
+                      {v.makeup && <Badge variant="info">{v.makeup}</Badge>}
+                      {v.method === 'reading-code' ? (
+                        showMethodChip && <Badge variant="info">Chấm bằng đọc mã, không chạy</Badge>
+                      ) : (
+                        v.method === 'essay' && <Badge variant="outline">Bài tự luận</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <StatusPill status={v.status} ungradableReason={v.ungradableReason} pipeline={v.pipeline} />
+                  </TableCell>
+                  <TableCell data-cell="score" className="text-right">
+                    {v.auditHidden && <EyeOff className="mr-1 inline h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />}
+                    <span className="font-semibold tabular-nums">{v.score.text}</span>{' '}
+                    <span className="text-caption text-muted-foreground">{v.score.tag}</span>
+                  </TableCell>
+                  <TableCell className="text-small tabular-nums">{v.errors}</TableCell>
+                  <TableCell className="max-w-[360px] text-small text-muted-foreground">{v.reason}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>

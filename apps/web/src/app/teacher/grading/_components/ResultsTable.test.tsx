@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import { mockMatchMedia, type MatchMediaMock } from '@/test-utils/match-media';
 import { ResultsTable } from './ResultsTable';
 import type { GradingResult } from '@/lib/api/grading';
 
@@ -144,5 +145,46 @@ describe('ResultsTable (spec §3.3)', () => {
       expect(screen.getByText(/Không có bài nào ở nhóm này/)).toBeInTheDocument();
       expect(screen.queryByRole('table')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('ResultsTable - how the list was graded', () => {
+  const code = (id: string) => result({ id, studentMssv: id, pipeline: 'one_shot', deliverableType: 'code_project', status: 'flagged_for_review' });
+
+  it('two or more rows all graded by reading: says it once and drops the per-row chip', () => {
+    render(<ResultsTable {...props({ results: [code('p'), code('q')] })} />);
+    expect(screen.getAllByText(/Mọi bài trong danh sách này được chấm bằng cách đọc mã, không chạy thử./)).toHaveLength(1);
+    expect(screen.queryByText('Chấm bằng đọc mã, không chạy')).not.toBeInTheDocument();
+  });
+
+  it('a mixed list keeps the chip on the code rows and shows no shared sentence', () => {
+    render(<ResultsTable {...props({ results: [code('p'), result({ id: 'z', studentMssv: 'z' })] })} />);
+    expect(screen.getAllByText('Chấm bằng đọc mã, không chạy')).toHaveLength(1);
+    expect(screen.queryByText(/Mọi bài trong danh sách này/)).not.toBeInTheDocument();
+  });
+});
+
+describe('ResultsTable - narrow viewport', () => {
+  let media: MatchMediaMock;
+  afterEach(() => media.restore());
+
+  it('below 820px renders cards, not a table', () => {
+    media = mockMatchMedia(true);
+    render(<ResultsTable {...props()} />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    const items = within(screen.getByRole('list', { name: 'Danh sách bài' })).getAllByRole('listitem');
+    expect(items.map((li) => within(li).getByRole('link').textContent)).toEqual(['20120002', '20120001', '20120010']);
+  });
+
+  it('the filter chips and the empty-filter message work in card mode too', () => {
+    media = mockMatchMedia(true);
+    const onFilterChange = vi.fn();
+    const view = render(<ResultsTable {...props({ filter: 'auto', onFilterChange })} />);
+    expect(within(screen.getByRole('list', { name: 'Danh sách bài' })).getAllByRole('listitem')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Tất cả · 3' }));
+    expect(onFilterChange).toHaveBeenCalledWith('all');
+    view.rerender(<ResultsTable {...props({ filter: 'audit' })} />);
+    expect(screen.getByText(/Không có bài nào ở nhóm này/)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Danh sách bài' })).not.toBeInTheDocument();
   });
 });

@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import { session, summary } from '@/lib/session-list.fixtures';
+import { mockMatchMedia, type MatchMediaMock } from '@/test-utils/match-media';
 import { SessionList } from './SessionList';
 
 let search = '';
@@ -241,5 +242,48 @@ describe('SessionList - review fixes', () => {
     expect(screen.getByText(/Đã chọn 2 phiên/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /DHKTPM18ATT/ })); // thu gọn nhóm
     expect(screen.queryByText(/Đã chọn/)).not.toBeInTheDocument();
+  });
+});
+
+describe('SessionList - narrow viewport', () => {
+  let media: MatchMediaMock;
+  beforeEach(() => {
+    media = mockMatchMedia(true);
+  });
+  afterEach(() => media.restore());
+
+  it('renders cards, not a table, below 820px', () => {
+    renderList();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Danh sách phiên chấm' })).toBeInTheDocument();
+    expect(names().map((l) => l.textContent)).toEqual(['Kiểm tra giữa kỳ', 'Thực hành đồ thị', 'Kiểm tra cuối kỳ']);
+  });
+
+  it('selecting a card opens the bulk bar', () => {
+    renderList();
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /^Chọn phiên/ })[0]);
+    expect(screen.getByRole('region', { name: /Thao tác trên phiên đã chọn/ })).toBeInTheDocument();
+  });
+
+  it('crossing 820px keeps the selection', () => {
+    renderList();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Chọn phiên Kiểm tra giữa kỳ/ }));
+    act(() => media.setMatches(false));
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /Chọn phiên Kiểm tra giữa kỳ/ })).toBeChecked();
+    expect(screen.getByText(/Đã chọn 1 phiên/)).toBeInTheDocument();
+  });
+
+  it('select-all on cards puts every visible session in the bulk bar', () => {
+    renderList();
+    fireEvent.click(screen.getByRole('checkbox', { name: /Chọn tất cả phiên đang hiện/ }));
+    expect(screen.getByText(/Đã chọn 3 phiên/)).toBeInTheDocument();
+  });
+
+  it('a wide viewport still renders the table', () => {
+    media.setMatches(false);
+    renderList();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Danh sách phiên chấm' })).not.toBeInTheDocument();
   });
 });
