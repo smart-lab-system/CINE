@@ -131,6 +131,7 @@ function createService(opts: {
     {} as never,
     {} as never,
     {} as never,
+    { find: jest.fn(async () => []) } as never,
   );
 
   return { service, storage, extensions, versions, extractQueue };

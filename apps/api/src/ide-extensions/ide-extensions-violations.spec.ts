@@ -100,6 +100,7 @@ function createService(opts: {
     {} as never,
     {} as never,
     students as never,
+    { find: jest.fn(async () => []) } as never,
   );
 
   return { service, scanItems, versions };
@@ -177,5 +178,120 @@ describe('IdeExtensionsService listViolations', () => {
     });
 
     await expect(service.listViolations()).resolves.toEqual([]);
+  });
+
+  it('filters incidents to examSessionId and enriches jplag/extract fields', async () => {
+    const OTHER_EXAM = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+    const otherItem = makeBlockedItem({
+      id: ITEM_B,
+      scanId: SCAN_B,
+      version: '1.0.0',
+      mssv: 'SV002',
+      scannedAt: new Date('2026-11-02T10:00:00Z'),
+    });
+    otherItem.scan.examSessionId = OTHER_EXAM;
+    otherItem.scan.examSession = {
+      id: OTHER_EXAM,
+      name: 'Phiên khác',
+      courseName: 'Lập trình Web',
+    };
+
+    const catalogVer = {
+      id: 'ver-1',
+      extensionPk: 'cat-1',
+      version: '1.0.0',
+      extractStatus: 'ready' as const,
+      approvalStatus: 'pending',
+      extension: undefined,
+    };
+
+    const jplagRuns = {
+      find: jest.fn(async () => [
+        {
+          id: 'run-1',
+          examSessionId: EXAM_ID,
+          extensionIdentifier: EXT_ID,
+          extensionVersion: '1.0.0',
+          versionId: 'ver-1',
+          kind: 'vs_model',
+          status: 'completed',
+          similarityText: 0.42,
+          createdAt: new Date('2026-11-02T12:00:00Z'),
+        },
+      ]),
+    };
+
+    const versionsFind = jest
+      .fn()
+      .mockResolvedValueOnce([]) // approvedVersions
+      .mockResolvedValueOnce([catalogVer]); // catalog versions by pk
+
+    const scanItems = {
+      find: jest.fn(async () => [
+        makeBlockedItem({
+          id: ITEM_A,
+          scanId: SCAN_A,
+          version: '1.0.0',
+          mssv: 'SV001',
+          scannedAt: new Date('2026-11-01T10:00:00Z'),
+        }),
+        otherItem,
+      ]),
+    };
+    const students = {
+      find: jest.fn(async () => [{ mssv: 'SV001', fullName: 'Nguyen Van A' }]),
+    };
+    const extensions = {
+      find: jest.fn(async () => [
+        {
+          id: 'cat-1',
+          identifier: EXT_ID,
+          displayName: 'Evil Tool',
+          publisher: 'evil',
+          publishedAt: new Date('2026-01-01T00:00:00Z'),
+          lastReleasedAt: new Date('2026-06-01T00:00:00Z'),
+        },
+      ]),
+    };
+    const courses = {
+      find: jest.fn(async () => [{ id: COURSE_ID, name: 'Lập trình Web', code: 'WEB' }]),
+    };
+    const dataSource = { getRepository: jest.fn(() => courses) };
+    const versions = { find: versionsFind };
+
+    const service = new IdeExtensionsService(
+      dataSource as never,
+      {} as never,
+      {} as never,
+      extensions as never,
+      versions as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      scanItems as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      students as never,
+      jplagRuns as never,
+    );
+
+    const rows = await service.listViolations(EXAM_ID);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].incidentCount).toBe(1);
+    expect(rows[0].versions[0].incidents[0].studentMssv).toBe('SV001');
+    expect(rows[0].publishedAt).toBe('2026-06-01T00:00:00.000Z');
+    expect(rows[0].jplagText).toBe(0.42);
+    expect(rows[0].jplagStatus).toBe('completed');
+    expect(rows[0].jplagRunId).toBe('run-1');
+    expect(rows[0].primaryVersionId).toBe('ver-1');
+    expect(rows[0].extractStatus).toBe('ready');
   });
 });

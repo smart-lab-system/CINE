@@ -178,6 +178,13 @@ export class EffectiveQueryDto {
   examSessionId?: string;
 }
 
+/** Optional session filter for open (2B) violations list. */
+export class ViolationsQueryDto {
+  @IsOptional()
+  @IsUUID()
+  examSessionId?: string;
+}
+
 export class BatchScanItemDto {
   @IsString()
   @MaxLength(200)

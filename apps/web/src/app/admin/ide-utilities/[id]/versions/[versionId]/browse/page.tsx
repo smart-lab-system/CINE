@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams, usePathname } from 'next/navigation';
+import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import {
   getCatalog,
@@ -121,9 +121,11 @@ function TreeRows({
 export default function IdeExtensionVersionBrowsePage() {
   const params = useParams<{ id: string; versionId: string }>();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const extensionId = params.id;
   const versionId = params.versionId;
   const catalogHref = pathname.replace(/\/versions\/[^/]+\/browse\/?$/, '');
+  const initialNormalized = searchParams.get('view') === 'normalized';
 
   const [browse, setBrowse] = useState<VersionBrowseView | null>(null);
   const [extensionLabel, setExtensionLabel] = useState('');
@@ -134,7 +136,9 @@ export default function IdeExtensionVersionBrowsePage() {
   const [folderPath, setFolderPath] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const [viewMode, setViewMode] = useState<'files' | 'normalized'>('files');
+  const [viewMode, setViewMode] = useState<'files' | 'normalized'>(
+    initialNormalized ? 'normalized' : 'files',
+  );
   const [normalized, setNormalized] = useState<NormalizedSourcesView | null>(null);
   const [normalizedBusy, setNormalizedBusy] = useState(false);
   const [normalizedError, setNormalizedError] = useState<string | null>(null);
@@ -259,7 +263,7 @@ export default function IdeExtensionVersionBrowsePage() {
     }
   };
 
-  const openNormalized = async () => {
+  const openNormalized = useCallback(async () => {
     setViewMode('normalized');
     setNormalizedError(null);
     if (normalized) return;
@@ -275,7 +279,15 @@ export default function IdeExtensionVersionBrowsePage() {
     } finally {
       setNormalizedBusy(false);
     }
-  };
+  }, [normalized, versionId]);
+
+  // Deep-link từ Vận hành phiên thi: ?view=normalized
+  useEffect(() => {
+    if (!initialNormalized) return;
+    if (!browse || browse.status !== 'ready') return;
+    if (normalized || normalizedBusy) return;
+    void openNormalized();
+  }, [initialNormalized, browse, normalized, normalizedBusy, openNormalized]);
 
   const selectedSnippet =
     normalized?.items.find((i) => i.id === selectedSnippetId) ?? null;

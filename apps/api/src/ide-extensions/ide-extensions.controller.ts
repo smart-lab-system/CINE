@@ -40,6 +40,7 @@ import {
   RejectRoomProposalDto,
   UpdateCatalogExtensionDto,
   VerifyTeacherMachineDto,
+  ViolationsQueryDto,
 } from './dto/ide-extensions.dto';
 
 @Controller('ide-extensions')
@@ -267,8 +268,8 @@ export class IdeExtensionsController {
   /** Blocked scan pairs still open under global catalog approval (2B). */
   @Get('violations')
   @Roles('admin', 'teacher')
-  listViolations() {
-    return this.service.listViolations();
+  listViolations(@Query() query: ViolationsQueryDto) {
+    return this.service.listViolations(query.examSessionId);
   }
 
   @Post('scans/batch')

@@ -50,6 +50,7 @@ import { ExamMaterialsCard } from './_components/ExamMaterialsCard';
 import { FinalizeSessionButton } from './_components/FinalizeSessionButton';
 import { LobbyDashboard } from './_components/LobbyDashboard';
 import { LobbyRosterTable } from './_components/LobbyRosterTable';
+import { SessionViolationsPanel } from './_components/SessionViolationsPanel';
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('vi-VN', {
@@ -806,6 +807,8 @@ export default function ExamSessionLobbyPage() {
               confirmedCount={attendance.data?.confirmedCount ?? null}
               classId={attendance.data?.classId ?? null}
             />
+
+            <SessionViolationsPanel examSessionId={examSessionId} />
 
             <LobbyRosterTable
               rows={lobbyRows}

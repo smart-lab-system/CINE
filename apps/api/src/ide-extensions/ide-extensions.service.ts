@@ -25,6 +25,8 @@ import { IdeExtensionPolicyItemEntity } from './entities/ide-extension-policy-it
 import { IdeExtensionScanEntity } from './entities/ide-extension-scan.entity';
 import { IdeExtensionScanItemEntity } from './entities/ide-extension-scan-item.entity';
 import { IdeExtensionSessionSummaryEntity } from './entities/ide-extension-session-summary.entity';
+import { IdeExtensionJplagRunEntity } from './entities/ide-extension-jplag-run.entity';
+import type { IdeExtensionExtractStatus } from './entities/ide-extension-version.entity';
 import { LabMgmtMachineEntity } from './entities/lab-mgmt-machine.entity';
 import { LabMgmtSessionEntity } from './entities/lab-mgmt-session.entity';
 import { LabRoomProposalEntity } from './entities/lab-room-proposal.entity';
@@ -107,6 +109,8 @@ export class IdeExtensionsService {
     private readonly classes: Repository<ClassEntity>,
     @InjectRepository(StudentEntity)
     private readonly students: Repository<StudentEntity>,
+    @InjectRepository(IdeExtensionJplagRunEntity)
+    private readonly jplagRuns: Repository<IdeExtensionJplagRunEntity>,
   ) {}
 
   /**
@@ -939,8 +943,10 @@ export class IdeExtensionsService {
 
   /**
    * Spec 2026-11-18: blocked scan items still open under global catalog approval (2B).
+   * Optional `examSessionId` filters incidents to one exam session and enriches
+   * JPlag / extract readiness for the Vận hành phiên thi panel.
    */
-  async listViolations() {
+  async listViolations(examSessionId?: string) {
     const blocked = await this.scanItems.find({
       where: { verdict: 'blocked' },
       relations: { scan: { examSession: true } },
@@ -955,9 +961,12 @@ export class IdeExtensionsService {
       .filter((v) => v.extension?.identifier)
       .map((v) => ({ identifier: v.extension.identifier, version: v.version }));
 
-    const openItems = blocked.filter((it) =>
+    let openItems = blocked.filter((it) =>
       isViolationPairStillOpen(it.extensionId, it.version, approvedPairs),
     );
+    if (examSessionId) {
+      openItems = openItems.filter((it) => it.scan.examSessionId === examSessionId);
+    }
     if (openItems.length === 0) return [];
 
     const mssvs = [...new Set(openItems.map((it) => it.scan.studentMssv))];
@@ -968,8 +977,9 @@ export class IdeExtensionsService {
           .filter((id): id is string => typeof id === 'string' && id.length > 0),
       ),
     ];
+    const identifiers = [...new Set(openItems.map((it) => it.extensionId))];
 
-    const [studentRows, courseRows, catalogExts] = await Promise.all([
+    const [studentRows, courseRows, catalogExts, sessionJplagRuns] = await Promise.all([
       mssvs.length
         ? this.students.find({ where: { mssv: In(mssvs) } })
         : Promise.resolve([] as StudentEntity[]),
@@ -977,15 +987,31 @@ export class IdeExtensionsService {
         ? this.dataSource.getRepository(CourseEntity).find({ where: { id: In(courseIds) } })
         : Promise.resolve([] as CourseEntity[]),
       this.extensions.find({
-        where: {
-          identifier: In([...new Set(openItems.map((it) => it.extensionId))]),
-        },
+        where: { identifier: In(identifiers) },
       }),
+      examSessionId
+        ? this.jplagRuns.find({
+            where: { examSessionId, kind: 'vs_model' },
+            order: { createdAt: 'DESC' },
+          })
+        : Promise.resolve([] as IdeExtensionJplagRunEntity[]),
     ]);
 
     const studentByMssv = new Map(studentRows.map((s) => [s.mssv.toLowerCase(), s]));
     const courseById = new Map(courseRows.map((c) => [c.id, c]));
     const catalogByIdentifier = new Map(catalogExts.map((e) => [e.identifier, e]));
+
+    const catalogPks = catalogExts.map((e) => e.id);
+    const catalogVersionRows =
+      catalogPks.length > 0
+        ? await this.versions.find({ where: { extensionPk: In(catalogPks) } })
+        : [];
+    const catalogVersionByPair = new Map(
+      catalogVersionRows.map((v) => {
+        const ext = catalogExts.find((e) => e.id === v.extensionPk);
+        return [`${ext?.identifier ?? ''}@${v.version}`, v] as const;
+      }),
+    );
 
     type Incident = {
       scanId: string;
@@ -1053,6 +1079,13 @@ export class IdeExtensionsService {
       ver.incidents.push(incident);
     }
 
+    const jplagByIdentifier = new Map<string, IdeExtensionJplagRunEntity[]>();
+    for (const run of sessionJplagRuns) {
+      const list = jplagByIdentifier.get(run.extensionIdentifier) ?? [];
+      list.push(run);
+      jplagByIdentifier.set(run.extensionIdentifier, list);
+    }
+
     const result = [...byExt.values()].map((ext) => {
       const catalog = catalogByIdentifier.get(ext.extensionId);
       const publisher =
@@ -1082,12 +1115,52 @@ export class IdeExtensionsService {
       const allIncidents = versions.flatMap((v) => v.incidents);
       const studentCount = new Set(allIncidents.map((i) => i.studentMssv.toLowerCase())).size;
 
+      // Prefer the open version with the most incidents (then non-null version string).
+      const primaryVersionMeta = [...versions].sort((a, b) => {
+        if (b.incidentCount !== a.incidentCount) return b.incidentCount - a.incidentCount;
+        if (a.version == null && b.version != null) return 1;
+        if (b.version == null && a.version != null) return -1;
+        return (a.version ?? '').localeCompare(b.version ?? '');
+      })[0];
+      const primaryVersionStr = primaryVersionMeta?.version ?? null;
+      const catalogVer =
+        primaryVersionStr != null
+          ? catalogVersionByPair.get(`${ext.extensionId}@${primaryVersionStr}`)
+          : undefined;
+
+      const runsForExt = jplagByIdentifier.get(ext.extensionId) ?? [];
+      const matchingRuns = primaryVersionStr
+        ? runsForExt.filter(
+            (r) =>
+              r.extensionVersion === primaryVersionStr ||
+              (catalogVer && r.versionId === catalogVer.id),
+          )
+        : runsForExt;
+      const pickPool = matchingRuns.length > 0 ? matchingRuns : runsForExt;
+      const completed = pickPool.find((r) => r.status === 'completed');
+      const active = pickPool.find(
+        (r) => r.status === 'pending' || r.status === 'running',
+      );
+      const jplagRun = completed ?? active ?? pickPool[0] ?? null;
+
+      const publishedAt =
+        catalog?.lastReleasedAt?.toISOString() ??
+        catalog?.publishedAt?.toISOString() ??
+        null;
+
       return {
         extensionId: ext.extensionId,
         displayName: ext.displayName ?? catalog?.displayName ?? null,
         publisher,
+        publishedAt,
         inCatalog: Boolean(catalog),
         catalogExtensionPk: catalog?.id ?? null,
+        primaryVersion: primaryVersionStr,
+        primaryVersionId: catalogVer?.id ?? null,
+        extractStatus: (catalogVer?.extractStatus ?? 'none') as IdeExtensionExtractStatus,
+        jplagText: completed?.similarityText ?? null,
+        jplagStatus: jplagRun?.status ?? null,
+        jplagRunId: jplagRun?.id ?? null,
         versionCount: versions.length,
         incidentCount: allIncidents.length,
         studentCount,

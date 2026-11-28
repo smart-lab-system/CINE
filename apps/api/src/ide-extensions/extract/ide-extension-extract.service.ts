@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as yauzl from 'yauzl';
 import { StorageService } from '../../storage/storage.service';
 import { IdeExtensionVersionEntity } from '../entities/ide-extension-version.entity';
+import { JplagExamService } from '../jplag/jplag-exam.service';
 import {
   IDE_EXTENSION_EXTRACT_MAX_ARCHIVE_BYTES,
   IDE_EXTENSION_EXTRACT_MAX_ENTRIES,
@@ -33,6 +34,9 @@ export class IdeExtensionExtractService {
     private readonly storage: StorageService,
     @InjectRepository(IdeExtensionVersionEntity)
     private readonly versions: Repository<IdeExtensionVersionEntity>,
+    @Optional()
+    @Inject(forwardRef(() => JplagExamService))
+    private readonly jplagExam?: JplagExamService,
   ) {}
 
   async processOne(versionId: string): Promise<void> {
@@ -89,6 +93,19 @@ export class IdeExtensionExtractService {
       row.extractTotalBytes = String(totalBytes);
       row.extractFinishedAt = new Date();
       await this.versions.save(row);
+
+      // Best-effort: resume JPlag vs_model that raced ahead of extract.
+      if (this.jplagExam) {
+        try {
+          await this.jplagExam.onVersionExtractReady(versionId);
+        } catch (hookError) {
+          this.logger.warn(
+            `onVersionExtractReady ${versionId}: ${
+              hookError instanceof Error ? hookError.message : String(hookError)
+            }`,
+          );
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : `Lỗi không xác định: ${String(error)}`;

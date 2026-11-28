@@ -65,7 +65,7 @@ describe('IdeExtensionExtractService', () => {
       save: jest.fn(async (r: unknown) => r),
     };
 
-    const service = new IdeExtensionExtractService(storage, versions as never);
+    const service = new IdeExtensionExtractService(storage, versions as never, undefined);
     return { service, storage, versions, row, putObject };
   }
 
