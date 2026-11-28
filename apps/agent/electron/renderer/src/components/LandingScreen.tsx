@@ -12,20 +12,19 @@ export function LandingScreen({
       <BrandMark />
       <h1 className="-mb-1 text-h2 font-bold">ExamCollect Agent</h1>
       <p className="text-small text-muted-foreground">
-        Chọn chế độ làm việc trên máy này. Hai lựa chọn tách biệt - vào phiên thi không mở module
-        Quản lý.
+        Fallback thủ công (máy chưa resolve catalog). Luồng chính: agent tự mở theo vai trò máy -
+        SV chờ Hub, GV đăng nhập Teacher Hub.
       </p>
       <div className="mt-2 flex flex-col gap-2.5">
         <AppButton type="button" onClick={onExam}>
-          Vào phiên thi
+          Vào phiên thi (thủ công)
         </AppButton>
         <AppButton type="button" variant="ghost" onClick={onMgmt}>
-          Quản lý
+          Quản lý (thủ công)
         </AppButton>
       </div>
       <p className="mt-auto text-caption text-muted-foreground">
-        Phiên thi: sinh viên nhập MSSV + mã phiên. Quản lý: giảng viên đăng nhập tài khoản; sinh viên
-        chỉ nhập MSSV để gắn LAN phòng lab.
+        Máy trong danh mục phòng không còn thấy màn này - xem spec Hub ép MSSV + auto join.
       </p>
     </div>
   );

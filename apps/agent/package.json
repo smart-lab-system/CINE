@@ -10,7 +10,8 @@
     "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p electron/tsconfig.node.json && tsc --noEmit -p electron/renderer/tsconfig.json",
     "build:electron": "electron-vite build",
     "preview:electron": "electron-vite preview",
-    "dist:win": "pnpm run build && pnpm run build:electron && electron-builder --win portable",
+    "dist:win:clean": "node -e \"const fs=require('fs');const path=require('path');for (const d of ['release/win-unpacked','release/win-unpacked.tmp']) { const p=path.join(process.cwd(),d); try { fs.rmSync(p,{recursive:true,force:true}); console.log('removed',d); } catch(e) { console.warn('WARN could not remove',d+':',e.message,'(close ExamCollect Agent / reload Cursor if EBUSY)'); } }\"",
+    "dist:win": "pnpm run build && pnpm run build:electron && pnpm run dist:win:clean && electron-builder --win portable",
     "lint": "eslint .",
     "test": "vitest run"
   },

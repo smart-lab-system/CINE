@@ -12,7 +12,15 @@ export type LabCommandName =
   | 'SCAN_VSCODE_EXTENSIONS'
   | 'READ_VSCODE_EXTENSION_ACTIVITY'
   | 'PING'
-  | 'GET_MACHINE_INFO';
+  | 'GET_MACHINE_INFO'
+  | 'PROMPT_IDENTIFY'
+  | 'CANCEL_IDENTIFY';
+
+/** Payload lệnh Hub ép SV nhập MSSV rồi auto-join phiên. */
+export interface PromptIdentifyPayload {
+  sessionCode: string;
+  examLabel?: string;
+}
 
 export interface LabCommandRequest {
   requestId: string;

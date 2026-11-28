@@ -14,7 +14,8 @@ export type HubActionName =
   | 'read_extension_activity'
   | 'compare_allowlist'
   | 'aggregate_room'
-  | 'sync_backend';
+  | 'sync_backend'
+  | 'prompt_identify';
 
 /** Đảm bảo register path không gọi action nghiệp vụ - dùng trong test. */
 export const ACTIONS_NOT_TRIGGERED_ON_REGISTER: readonly HubActionName[] = [
@@ -23,6 +24,7 @@ export const ACTIONS_NOT_TRIGGERED_ON_REGISTER: readonly HubActionName[] = [
   'compare_allowlist',
   'aggregate_room',
   'sync_backend',
+  'prompt_identify',
 ] as const;
 
 export function refreshMachines(hub: TeacherHub): void {
@@ -41,6 +43,24 @@ export async function readExtensionActivity(
   machineIds?: string[],
 ): Promise<void> {
   await hub.sendCommand('READ_VSCODE_EXTENSION_ACTIVITY', machineIds);
+}
+
+export async function promptIdentify(
+  hub: TeacherHub,
+  payload: { sessionCode: string; examLabel?: string | null },
+  machineIds?: string[],
+): Promise<void> {
+  await hub.sendCommand('PROMPT_IDENTIFY', machineIds, {
+    sessionCode: payload.sessionCode,
+    examLabel: payload.examLabel ?? undefined,
+  });
+}
+
+export async function cancelIdentify(
+  hub: TeacherHub,
+  machineIds?: string[],
+): Promise<void> {
+  await hub.sendCommand('CANCEL_IDENTIFY', machineIds);
 }
 
 export interface MachineComparison {

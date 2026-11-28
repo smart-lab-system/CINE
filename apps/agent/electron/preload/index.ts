@@ -80,6 +80,44 @@ const api: AgentApi = {
     ipcRenderer.on(IPC_CHANNELS.mgmtNodeState, listener);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.mgmtNodeState, listener);
   },
+  mgmtPromptIdentify(machineIds?: string[]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtPromptIdentify, machineIds);
+  },
+  mgmtCancelIdentify(machineIds?: string[]) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtCancelIdentify, machineIds);
+  },
+  mgmtSubmitIdentifyAndJoin(payload: import('../shared/ipc').MgmtSubmitIdentifyAndJoinRequest) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtSubmitIdentifyAndJoin, payload);
+  },
+  onIdentifyRequired(callback: (payload: import('../shared/ipc').MgmtIdentifyRequiredPayload) => void): () => void {
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      payload: import('../shared/ipc').MgmtIdentifyRequiredPayload,
+    ): void => callback(payload);
+    ipcRenderer.on(IPC_CHANNELS.mgmtIdentifyRequired, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.mgmtIdentifyRequired, listener);
+  },
+  onIdentifyCancelled(callback: () => void): () => void {
+    const listener = (): void => callback();
+    ipcRenderer.on(IPC_CHANNELS.mgmtIdentifyCancelled, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.mgmtIdentifyCancelled, listener);
+  },
+  mgmtSetExamAutoMonitor(enabled: boolean) {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtSetExamAutoMonitor, enabled);
+  },
+  mgmtGetExamAutoMonitorState() {
+    return ipcRenderer.invoke(IPC_CHANNELS.mgmtGetExamAutoMonitorState);
+  },
+  onExamAutoMonitorState(
+    callback: (state: import('../../src/lab-mgmt/exam-auto-monitor').ExamAutoMonitorState) => void,
+  ): () => void {
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      state: import('../../src/lab-mgmt/exam-auto-monitor').ExamAutoMonitorState,
+    ): void => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.mgmtExamAutoMonitorState, listener);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.mgmtExamAutoMonitorState, listener);
+  },
   mgmtRefreshMachines() {
     return ipcRenderer.invoke(IPC_CHANNELS.mgmtRefreshMachines);
   },

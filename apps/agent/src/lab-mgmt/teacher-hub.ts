@@ -131,6 +131,7 @@ export class TeacherHub extends EventEmitter {
   async sendCommand(
     command: LabCommandName,
     machineIds?: string[],
+    payload?: unknown,
   ): Promise<LabCommandResponse[]> {
     const targets =
       machineIds && machineIds.length > 0
@@ -152,6 +153,7 @@ export class TeacherHub extends EventEmitter {
       const request: LabCommandRequest = {
         requestId: randomUUID(),
         command,
+        payload,
         issuedAt: new Date().toISOString(),
       };
       const response = await this.sendRequest(sock, id, request);
