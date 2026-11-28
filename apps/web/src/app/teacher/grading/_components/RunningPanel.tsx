@@ -6,20 +6,22 @@ import { Button } from '@/components/ui/button';
 import { countSystemUngradable } from '@/lib/regrade-triage';
 import { addSample, describeRate, describeStall, estimate, stalledSeconds, type RateSample } from '@/lib/progress-rate';
 import { stateOf } from '@/lib/session-triage';
+import { SessionIncidents, aiServiceIncident } from './SessionIncidents';
 import { isStuck } from './stuck';
 import type { GradingProgress, GradingResult } from '@/lib/api/grading';
 
 /**
- * Đang chấm và sự cố giữa chừng (spec §3.8).
+ * Đang chấm và sự cố giữa chừng (spec §3.8; bố cục theo spec Giai đoạn 2 §5.2).
  *
  * Số liệu lấy từ `grading-progress` (đếm `grading_result` của CHÍNH phiên này, nên đúng cả khi Redis mất). Bài
  * dừng vì lỗi hệ thống KHÔNG được đếm vào "đã có kết quả" (T-UI-13): nó chưa có điểm. `queue` là hàng đợi toàn
  * hệ thống, nên "đang chạy" và "chờ lượt" của riêng phiên không suy ra được - thanh chỉ có ba phần thật.
  *
- * Luật chung cho các băng: mỗi băng nói CÁI GÌ HỎNG (máy bạn · máy chủ · hàng đợi) và BÀI LÀM CÓ BỊ ẢNH HƯỞNG
- * KHÔNG. Không băng nào chỉ ghi "đã xảy ra lỗi". Cái API chưa nói được (bài nào đang chạy công cụ gì) mang nhãn
- * không được vẽ thành số liệu và không gửi gì. Chấm lại bài dừng vì lỗi hệ thống có route (G3), nhưng nút chỉ đặt
- * một chỗ - đầu phiên - để giảng viên không gặp hai nút cùng làm một việc.
+ * Thứ tự: băng của máy bạn / máy chủ (khác nguyên nhân, có nút riêng) → MỘT thông báo sự cố (lỗi dịch vụ AI, bài
+ * bị kẹt, bài đã dừng - `SessionIncidents`) → MỘT khối tình trạng (tiêu đề tóm tắt, thanh, chú giải, ước tính).
+ * Mỗi băng nói CÁI GÌ HỎNG và BÀI LÀM CÓ BỊ ẢNH HƯỞNG KHÔNG; không băng nào chỉ ghi "đã xảy ra lỗi". Cái API chưa nói
+ * được (bài nào đang chạy công cụ gì) mang nhãn, không được vẽ thành số liệu. Chấm lại bài dừng vì lỗi hệ thống và
+ * bài bị kẹt có MỘT nút, đặt ở đầu phiên (`SessionHeader`), nên không băng nào ở đây có nút chấm lại.
  */
 export function RunningPanel({
   progress,
@@ -71,6 +73,10 @@ export function RunningPanel({
   const stuckCount = progress.byStatus.ai_grading ?? progress.pending;
   const stall = stuck ? stalledSeconds(samples, Date.now()) : null;
   const lastRead = lastReadAt === null ? null : new Date(lastReadAt).toLocaleTimeString('vi-VN');
+  // Danh sách kết quả có thể đi trước tiến độ một nhịp (ngay sau khi chấm lại): số bài lỗi AI không vượt số bài dừng đang hiện.
+  const ai = aiServiceIncident(results);
+  const aiCount = ai ? Math.min(ai.count, stopped) : 0;
+  const aiShown = ai && aiCount >= 2 ? { count: aiCount, reason: ai.reason } : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -103,25 +109,23 @@ export function RunningPanel({
         </Alert>
       )}
 
-      {stuck && (
-        <Alert variant="warning">
-          <AlertDescription className="flex flex-col gap-2">
-            <span>
-              <strong>{stuckCount} bài đang bị kẹt</strong> - không còn tiến trình chấm nào xử lý chúng.
-              {stall !== null && <> Không có bài nào hoàn thành trong {describeStall(stall)}.</>}
-            </span>
-            <span className="text-caption">Bấm nút chấm lại ở đầu trang để xếp lại các bài này.</span>
-          </AlertDescription>
-        </Alert>
-      )}
+      <SessionIncidents
+        aiService={aiShown}
+        stuck={stuck ? { count: stuckCount, stall: stall === null ? null : describeStall(stall) } : null}
+        stopped={online && stopped > 0 ? { count: stopped, regradable: Math.min(systemStopped, stopped) } : null}
+      />
 
       <div data-stale={stale} className={`flex flex-col gap-3 ${stale ? 'opacity-60' : ''}`}>
+        <p className="text-body font-semibold tabular-nums">
+          {withResult}/{progress.total} bài đã có kết quả · {progress.pending} đang chấm
+        </p>
         <div
           role="progressbar"
           aria-label="Tiến độ chấm"
           aria-valuenow={progress.done}
           aria-valuemin={0}
           aria-valuemax={progress.total}
+          aria-valuetext={`${withResult} có kết quả, ${progress.pending} đang chấm, ${stopped} dừng`}
           className="flex h-3 w-full overflow-hidden rounded-full bg-border"
         >
           {parts
@@ -149,25 +153,6 @@ export function RunningPanel({
           Bài đã có kết quả mở được ngay trong danh sách bên dưới - không phải đợi hết lượt.
         </p>
       </div>
-
-      {/* Chỉ số đếm của CHÍNH phiên này (lấy từ grading-progress). Không có thời điểm bắt đầu từng bài trong tiến độ,
-          nên không hiện "bài chạy lâu nhất"; nếu cần, phải thêm trường vào grading-progress trước. */}
-      <section aria-label="Đang chạy ngay lúc này" className="rounded-lg border border-border bg-surface p-4">
-        <h3 className="text-small font-semibold">Đang chạy ngay lúc này</h3>
-        <p className="mt-1 text-small">
-          <span className="font-semibold tabular-nums">{progress.pending}</span> bài của phiên này đang chấm
-          {progress.pending > 0 && ` · ${progress.done} trên ${progress.total} đã có kết quả`}.
-        </p>
-      </section>
-
-      {online && stopped > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <p className="text-small text-muted-foreground">
-            {stopped} bài đã dừng. Bài dừng vì lỗi hệ thống chưa có điểm nào
-            {systemStopped > 0 ? ` - ${systemStopped} bài trong số đó chấm lại được bằng nút ở đầu trang.` : '.'}
-          </p>
-        </div>
-      )}
     </div>
   );
 }

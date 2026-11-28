@@ -83,13 +83,13 @@ Chủ dự án chọn B (27/11/2026). Lý do: việc chính của danh sách là
 
 Thay `AiServiceBand`, băng "bị kẹt" và khối "đã dừng" của `RunningPanel`, cùng khối "Đang chạy ngay lúc này", bằng:
 
-1. **Tình trạng:** một dòng tóm tắt ("38/40 bài đã có kết quả · 2 đang chấm"), thanh tiến độ ba phần và các số đếm như hiện nay, một dòng ước tính tốc độ, và đúng một câu "Bài đã có kết quả mở được ngay trong danh sách bên dưới". Bỏ khối "Đang chạy ngay lúc này" vì lặp lại số đếm.
+1. **Tình trạng:** một dòng tóm tắt ("36/40 bài đã có kết quả · 2 đang chấm"; số "có kết quả" KHÔNG tính bài đã dừng, khớp chú giải, đã sửa khi làm PR 2), thanh tiến độ ba phần và các số đếm như hiện nay, một dòng ước tính tốc độ, và đúng một câu "Bài đã có kết quả mở được ngay trong danh sách bên dưới". Bỏ khối "Đang chạy ngay lúc này" vì lặp lại số đếm.
 2. **Sự cố:** MỘT thông báo cảnh báo, tối đa ba dòng, mỗi dòng một loại và chỉ hiện khi có: (a) "Dịch vụ AI lỗi: N bài cùng một lý do “…”" (đếm theo danh sách hiện tại, nói ngắn như văn bản cũ), (b) "N bài đang bị kẹt" kèm thời gian đứng yên nếu đo được, (c) "N bài đã dừng; M bài chấm lại được". Một câu chung "Bấm nút chấm lại ở đầu trang" ở cuối, không lặp theo từng dòng. Không có dòng nào thì không có thông báo.
 3. **Giữ nguyên:** băng mất mạng và băng "máy chủ không trả lời" (khác nguyên nhân, có nút riêng); điều kiện `isStuck`; số đếm lấy từ cùng nguồn.
 
-Băng "Dịch vụ AI lỗi" hiện còn hiện khi phiên không đang chấm; thông báo sự cố mới giữ hành vi đó (chỉ dòng (a) và (c) khi không chạy). Thành phần mới đặt trong `_components/` cạnh các thành phần cũ; `AiServiceBand` và phần liên quan của `RunningPanel` bị xoá cùng test của chúng, test mới bao quát cả bốn tổ hợp.
+Khi phiên không đang chấm, thông báo sự cố chỉ có dòng (a) "Dịch vụ AI lỗi", như băng cũ. Dòng (b) và (c) chỉ hiện khi đang chấm (đã sửa khi làm PR 2: bản đầu viết "(a) và (c)" nhưng không khớp với hành vi cũ và kế hoạch). Thứ tự: băng mất mạng, băng máy chủ, thông báo sự cố, rồi khối tình trạng. Thông báo có `role="status"` (không phải `alert`): trình đọc màn hình đọc nhẹ, không cắt ngang khi có cập nhật theo nhịp đo. Lưu ý: vùng `status` vẫn đọc lại cả khối khi nội dung đổi; chỉ đọc phần thay đổi là việc riêng, chưa làm, và lần xuất hiện đầu có thể không được đọc (chưa kiểm bằng trình đọc màn hình). Thành phần mới đặt trong `_components/` cạnh các thành phần cũ; `AiServiceBand` và phần liên quan của `RunningPanel` bị xoá cùng test của chúng, test mới bao quát cả bốn tổ hợp.
 
-**Xong khi:** ở phiên có 2 bài AI lỗi và 2 bài kẹt (cùng dữ liệu ảnh TRƯỚC), khoảng từ đầu trang tới danh sách bài ≤ 300px ở 1280px (hiện khoảng 490px; đo lại bằng `evaluate` trên cả hai lượt chụp, vì 490px là số đo từ ảnh); số bài nói trong băng khớp dòng và thanh; không còn khối nào chỉ nhắc lại số đã hiện.
+**Xong khi:** ở phiên có 2 bài AI lỗi và 2 bài kẹt (cùng dữ liệu ảnh TRƯỚC), khoảng từ đầu trang tới danh sách bài ≤ 350px ở 1280px. [Đổi từ 300px sau khi đo thật (27/11/2026): trước 512px, sau 345px. Mục tiêu 300px ước lượng từ ảnh (khoảng 490px) và không đạt được mà không cắt một trong năm phần của khối tình trạng (tiêu đề tóm tắt, thanh, chú giải, ước tính, câu "mở được ngay"); chủ dự án chọn chấp nhận 345px.]; số bài nói trong băng khớp dòng và thanh; không còn khối nào chỉ nhắc lại số đã hiện.
 
 ### 5.3 PR 3 — trang một bài đang chấm và các lỗi nhỏ
 
