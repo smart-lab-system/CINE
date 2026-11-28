@@ -113,7 +113,7 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
   it('SERVER not answering: says it does not know whether grading continues, and offers a retry that refetches', () => {
     const onRetry = vi.fn();
     render(<RunningPanel {...props({ progressError: new Error('Bad gateway'), onRetry })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Không biết việc chấm có chạy tiếp không');
+    expect(screen.getByText(/Không biết việc chấm có chạy tiếp không/).closest('[role="alert"]')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại ngay' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
@@ -159,17 +159,16 @@ describe('RunningPanel - incidents: each banner says WHAT broke and whether the 
 });
 
 describe('RunningPanel - what the API cannot tell yet is labelled, not invented (T-UI-10)', () => {
-  it('"Đang chạy ngay lúc này" shows the count of this session, and no "cần backend" placeholder', () => {
+  it('there is no "Đang chạy ngay lúc này" block any more, and no "cần backend" placeholder', () => {
     render(<RunningPanel {...props({ progress: progress({ pending: 4, done: 6, total: 10 }) })} />);
-    const block = screen.getByRole('region', { name: 'Đang chạy ngay lúc này' });
-    expect(within(block).getByText('4')).toBeInTheDocument();
-    expect(within(block).getByText(/bài của phiên này đang chấm/)).toBeInTheDocument();
-    expect(within(block).queryByText('cần backend')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Đang chạy ngay lúc này' })).not.toBeInTheDocument();
+    expect(screen.queryByText('cần backend')).not.toBeInTheDocument();
   });
 
-  it('the stopped-results note points to the one regrade button at the top - no second button here', () => {
+  it('the stopped line says how many can be regraded and points to the one regrade button at the top - no second button here', () => {
     render(<RunningPanel {...props()} />);
-    expect(screen.getByText(/chấm lại được bằng nút ở đầu trang/)).toBeInTheDocument();
+    expect(screen.getByText(/2 bài trong số đó chấm lại được/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Bấm nút chấm lại ở đầu trang/)).toHaveLength(1);
     expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
   });
 
@@ -185,11 +184,61 @@ describe('RunningPanel - what the API cannot tell yet is labelled, not invented 
       />,
     );
     expect(screen.getByText(/1 bài đã dừng/)).toBeInTheDocument();
+    expect(screen.queryByText(/chấm lại được/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bấm nút chấm lại/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
   });
 
   it('offers no regrade of stopped results when none stopped', () => {
     render(<RunningPanel {...props({ results: [result()] })} />);
     expect(screen.queryByRole('button', { name: /lỗi hệ thống/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('RunningPanel - one status band, one incident block (Giai đoạn 2 §5.2)', () => {
+  const stuckProgress = () =>
+    progress({ pending: 3, done: 7, byStatus: { ai_grading: 3 }, queue: { waiting: 0, active: 0, failed: 0 } });
+
+  it('headline says results out of total and how many are grading, from the same numbers as the legend', () => {
+    render(<RunningPanel {...props()} />);
+    expect(screen.getByText('4/10 bài đã có kết quả · 4 đang chấm')).toBeInTheDocument();
+    const legend = screen.getByRole('list', { name: 'Các phần của lượt chấm' });
+    expect(within(legend).getByText('Đã có kết quả').closest('li')).toHaveTextContent('4');
+  });
+
+  it('a running session with no incident has no alert at all', () => {
+    render(<RunningPanel {...props({ results: [result()] })} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Tiến độ chấm' })).toBeInTheDocument();
+  });
+
+  it('AI service, stuck and stopped share ONE alert inside the panel', () => {
+    render(<RunningPanel {...props({ progress: stuckProgress() })} />);
+    const alerts = screen.getAllByRole('alert');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/);
+    expect(alerts[0]).toHaveTextContent(/3 bài đang bị kẹt/);
+    expect(alerts[0]).toHaveTextContent(/2 bài đã dừng/);
+    expect(screen.getAllByText(/Bấm nút chấm lại ở đầu trang/)).toHaveLength(1);
+  });
+
+  it('offline: the AI service incident stays, but stuck and stopped are not claimed', () => {
+    render(<RunningPanel {...props({ online: false, progress: stuckProgress() })} />);
+    expect(screen.getByText(/Dịch vụ AI lỗi - 2 bài/)).toBeInTheDocument();
+    expect(screen.queryByText(/đang bị kẹt/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/bài đã dừng/)).not.toBeInTheDocument();
+  });
+
+  it('a stopped count larger than the done count never goes negative and the headline matches the legend', () => {
+    const stoppedThree = [1, 2, 3].map((n) =>
+      result({ id: String(n), status: 'flagged_for_review', ungradableReason: 'Hết giờ', ungradableClass: 'system' }),
+    );
+    render(<RunningPanel {...props({ progress: progress({ total: 10, pending: 4, done: 1 }), results: stoppedThree })} />);
+    const legend = screen.getByRole('list', { name: 'Các phần của lượt chấm' });
+    expect(within(legend).getByText('Không chấm được / dừng').closest('li')).toHaveTextContent(/dừng\s*1$/);
+    expect(within(legend).getByText('Đã có kết quả').closest('li')).toHaveTextContent(/kết quả\s*0$/);
+    expect(screen.getByText('0/10 bài đã có kết quả · 4 đang chấm')).toBeInTheDocument();
+    expect(screen.getByText(/1 bài đã dừng/)).toBeInTheDocument();
+    expect(screen.getByText(/1 bài trong số đó chấm lại được/)).toBeInTheDocument();
   });
 });
