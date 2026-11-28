@@ -124,10 +124,20 @@ export function SessionReviewStep({
             <dt className="text-muted-foreground">Ngày thi</dt>
             <dd className="text-lg font-medium text-foreground">{info.examDate || '-'}</dd>
           </div>
+          {info.startTimeOfDay ? (
+            <div>
+              <dt className="text-muted-foreground">Thời gian bắt đầu</dt>
+              <dd className="text-lg font-medium text-foreground">{info.startTimeOfDay}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-muted-foreground">Tiết bắt đầu</dt>
             <dd className="text-lg font-medium text-foreground">
-              {info.startPeriod ? periodSelectLabel(info.startPeriod) : '-'}
+              {info.startTimeOfDay
+                ? 'Bỏ qua - dùng giờ tường'
+                : info.startPeriod
+                  ? periodSelectLabel(info.startPeriod)
+                  : '-'}
             </dd>
           </div>
           <div>

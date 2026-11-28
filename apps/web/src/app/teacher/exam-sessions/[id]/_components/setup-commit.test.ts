@@ -10,6 +10,7 @@ function futureInfo(over: Partial<SetupServerBaseline['info']> = {}) {
     examType: 'TK',
     roomId: 'room-1',
     examDate,
+    startTimeOfDay: '',
     startPeriod: 1,
     endPeriod: 3,
     durationMinutes: 90,
@@ -20,7 +21,9 @@ function futureInfo(over: Partial<SetupServerBaseline['info']> = {}) {
 function server(over: Partial<SetupServerBaseline> = {}): SetupServerBaseline {
   return {
     info: futureInfo(),
-    folder: { requiredFilenames: [{ value: 'Bai.docx', deliverableType: 'document' }] },
+    folder: {
+      requiredFilenames: [{ value: '{SOMAY}_{MSSV}_{HOTEN}.zip', deliverableType: 'document' }],
+    },
     rubricId: 'rubric-1',
     ...over,
   };
@@ -62,13 +65,40 @@ describe('saveDraftPlan', () => {
       expect(infoAction.body.durationMinutes).toBe(90);
     }
   });
+
+  it('giờ tường bỏ qua tiết bắt đầu khi ghi', () => {
+    const plan = saveDraftPlan(
+      draft({
+        info: futureInfo({
+          startTimeOfDay: '07:05',
+          startPeriod: 0,
+          endPeriod: 0,
+          durationMinutes: 90,
+        }),
+      }),
+      server(),
+    );
+    expect(plan.actions.map((action) => action.kind)).toEqual(['info']);
+    const infoAction = plan.actions.find((action) => action.kind === 'info');
+    expect(infoAction?.kind).toBe('info');
+    if (infoAction?.kind === 'info') {
+      expect(infoAction.body.startPeriod).toBeUndefined();
+      expect(infoAction.body.endPeriod).toBeUndefined();
+      expect(infoAction.body.durationMinutes).toBe(90);
+      const start = new Date(infoAction.body.startTime);
+      expect(start.getHours()).toBe(7);
+      expect(start.getMinutes()).toBe(5);
+    }
+  });
 });
 
 describe('finishPlan', () => {
-  it('thiếu file nộp thì chặn ở Thư mục bài làm và không có PUT', () => {
+  it('thiếu gói nộp thì chặn ở Thư mục bài làm và không có PUT', () => {
     const result = finishPlan(
       null,
-      server({ folder: { requiredFilenames: [{ value: '', deliverableType: 'document' }] } }),
+      server({
+        folder: { requiredFilenames: [{ value: '', deliverableType: 'document' }] },
+      }),
       { status: 'scheduled', studentCount: 2, materialCount: 0 },
     );
     expect(result.ok).toBe(false);

@@ -57,7 +57,7 @@ export function evaluateSetupChecklist(input: SetupChecklistInput): SetupCheckli
   if (input.deliverableCount < 1) {
     return {
       canOpen: false,
-      blockReason: 'Hãy cấu hình thư mục bài thi (ít nhất 1 file nộp) trước khi mở phiên.',
+      blockReason: 'Hãy cấu hình thư mục bài thi (một gói nộp .zip hoặc .rar) trước khi mở phiên.',
       warnings,
     };
   }

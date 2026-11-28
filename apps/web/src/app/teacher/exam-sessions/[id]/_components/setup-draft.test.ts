@@ -14,11 +14,14 @@ const server: SetupServerBaseline = {
     examType: 'TK',
     roomId: 'room-1',
     examDate: '2026-11-01',
+    startTimeOfDay: '',
     startPeriod: 1,
     endPeriod: 3,
     durationMinutes: 90,
   },
-  folder: { requiredFilenames: [{ value: 'Bai.docx', deliverableType: 'document' }] },
+  folder: {
+    requiredFilenames: [{ value: '{SOMAY}_{MSSV}_{HOTEN}.zip', deliverableType: 'document' }],
+  },
   rubricId: null,
 };
 
@@ -89,7 +92,7 @@ describe('stripClean', () => {
         folder: {
           requiredFilenames: [
             {
-              value: 'Bai.docx',
+              value: '{SOMAY}_{MSSV}_{HOTEN}.zip',
               deliverableType: 'document',
               entries: [],
               id: 'rhf-1',

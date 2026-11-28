@@ -22,8 +22,9 @@ export type SaveAction =
         roomId: string;
         startTime: string;
         endTime: string;
-        startPeriod: number;
-        endPeriod: number;
+        /** Bỏ khi dùng giờ tường (`startTimeOfDay`) thay tiết bắt đầu. */
+        startPeriod?: number;
+        endPeriod?: number;
         durationMinutes: number;
       };
     }
@@ -42,16 +43,18 @@ export type FinishPlan =
 export function infoReady(info: SetupInfoDraft | undefined): info is SetupInfoDraft {
   if (!info) return false;
   if (!EXAM_TYPES.includes(info.examType as ExamType)) return false;
-  if (
-    !info.roomId ||
-    !info.examDate ||
-    !info.startPeriod ||
-    !info.endPeriod ||
-    !info.durationMinutes
-  ) {
-    return false;
+  if (!info.roomId || !info.examDate || !info.durationMinutes) return false;
+
+  if (info.startTimeOfDay) {
+    // Giờ tường: bỏ qua tiết bắt đầu; tiết kết thúc không bắt buộc.
+    if (info.endPeriod && info.startPeriod && info.endPeriod < info.startPeriod) {
+      return false;
+    }
+  } else {
+    if (!info.startPeriod || !info.endPeriod) return false;
+    if (info.endPeriod < info.startPeriod) return false;
   }
-  if (info.endPeriod < info.startPeriod) return false;
+
   const range = infoDraftToLocalRange(info);
   if (!range) return false;
   const start = new Date(range.startLocal).getTime();
@@ -102,6 +105,7 @@ export function saveDraftPlan(
   if (draft.info) {
     if (infoReady(draft.info)) {
       const range = infoDraftToLocalRange(draft.info)!;
+      const useWallClock = Boolean(draft.info.startTimeOfDay);
       actions.push({
         kind: 'info',
         body: {
@@ -109,9 +113,15 @@ export function saveDraftPlan(
           roomId: draft.info.roomId,
           startTime: new Date(range.startLocal).toISOString(),
           endTime: new Date(range.endLocal).toISOString(),
-          startPeriod: draft.info.startPeriod,
-          endPeriod: draft.info.endPeriod,
           durationMinutes: draft.info.durationMinutes,
+          ...(useWallClock
+            ? draft.info.endPeriod
+              ? { endPeriod: draft.info.endPeriod }
+              : {}
+            : {
+                startPeriod: draft.info.startPeriod,
+                endPeriod: draft.info.endPeriod,
+              }),
         },
       });
     } else {

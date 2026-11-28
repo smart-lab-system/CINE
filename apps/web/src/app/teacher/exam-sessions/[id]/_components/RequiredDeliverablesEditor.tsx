@@ -5,6 +5,7 @@ import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RequiredFilenamesInput } from '@/app/teacher/exam-sessions/new/_components/RequiredFilenamesInput';
 import {
+  DEFAULT_ARCHIVE_DELIVERABLE,
   replaceRequiredDeliverablesSchema,
   type ReplaceRequiredDeliverablesFormValues,
 } from '@/app/teacher/exam-sessions/new/schema';
@@ -13,24 +14,47 @@ import { ExamFolderPreview } from './ExamFolderPreview';
 import { foldersMatch } from './setup-draft';
 import { useSetupDraftOptional } from './SetupDraftProvider';
 
+/**
+ * Giá trị form editor. DB trống → điền mặc định `{SOMAY}_{MSSV}_{HOTEN}.zip`
+ * để GV thấy sẵn; baseline server dùng `toServerFolderBaseline` (trống) để
+ * checklist vẫn đòi lưu thật.
+ */
 export function toDeliverableFormValues(
   deliverables: RequiredDeliverableResponse[],
 ): ReplaceRequiredDeliverablesFormValues {
   if (deliverables.length === 0) {
-    return { requiredFilenames: [{ value: '', deliverableType: 'document' }] };
+    return {
+      requiredFilenames: [{ value: DEFAULT_ARCHIVE_DELIVERABLE, deliverableType: 'document' }],
+    };
   }
+  // Hub chỉ còn 1 gói; nếu DB còn nhiều dòng (phiên cũ) lấy dòng đầu để GV sửa.
+  const d = deliverables[0]!;
   return {
-    requiredFilenames: deliverables.map((d) => ({
-      value: d.requiredFilename,
-      deliverableType: d.deliverableType,
-      ...(d.language === 'python' || d.language === 'cpp' || d.language === 'java'
-        ? { language: d.language }
-        : {}),
-      ...(d.entries.length > 0
-        ? { entries: d.entries.map((value) => ({ value })) }
-        : {}),
-    })),
+    requiredFilenames: [
+      {
+        value: d.requiredFilename,
+        deliverableType: d.deliverableType,
+        ...(d.language === 'python' || d.language === 'cpp' || d.language === 'java'
+          ? { language: d.language }
+          : {}),
+        ...(d.entries.length > 0
+          ? { entries: d.entries.map((value) => ({ value })) }
+          : {}),
+      },
+    ],
   };
+}
+
+/** Baseline so sánh bẩn / checklist: DB trống = chưa có gói đã lưu. */
+export function toServerFolderBaseline(
+  deliverables: RequiredDeliverableResponse[],
+): ReplaceRequiredDeliverablesFormValues {
+  if (deliverables.length === 0) {
+    return {
+      requiredFilenames: [{ value: '', deliverableType: 'document' }],
+    };
+  }
+  return toDeliverableFormValues(deliverables);
 }
 
 function LiveFolderPreview({ materialFilenames }: { materialFilenames: string[] }) {

@@ -83,7 +83,10 @@ export function describeCreateError(error: unknown): string {
   return FALLBACK_CREATE_ERROR;
 }
 
-/** Một dòng file bắt buộc - dùng chung form tạo (cũ) và hub thiết lập. */
+/** Mặc định một gói nộp trên hub Thư mục bài làm. */
+export const DEFAULT_ARCHIVE_DELIVERABLE = '{SOMAY}_{MSSV}_{HOTEN}.zip';
+
+/** Một dòng gói nộp (đúng 1 trên hub) - phải là .zip hoặc .rar. */
 const requiredFilenameItemSchema = z
   .object({
     value: z
@@ -93,7 +96,10 @@ const requiredFilenameItemSchema = z
       .regex(
         FILENAME_TEMPLATE_REGEX,
         'Chỉ được dùng chữ, số, "_", "-", "." và các ô {MSSV} {HOTEN} {SOMAY}',
-      ),
+      )
+      .refine((value) => isArchiveFilename(value), {
+        message: `Gói nộp phải là file ${ARCHIVE_EXTENSIONS.join(' hoặc ')}`,
+      }),
     deliverableType: z.enum(['document', 'code_project', 'image']).default('document'),
     language: z.enum(['python', 'cpp', 'java']).optional(),
     entries: z
@@ -116,13 +122,6 @@ const requiredFilenameItemSchema = z
       .optional(),
   })
   .refine(
-    (item) => !item.entries || item.entries.length === 0 || isArchiveFilename(item.value),
-    {
-      message: `Chỉ khai được file bên trong cho deliverable ${ARCHIVE_EXTENSIONS.join(' hoặc ')}`,
-      path: ['entries'],
-    },
-  )
-  .refine(
     (item) => {
       if (!item.entries) return true;
       const seen = new Set<string>();
@@ -140,47 +139,16 @@ const requiredFilenameItemSchema = z
   });
 
 /**
- * Danh sách file bắt buộc trên hub (PUT …/required-deliverables).
- * create-slim: không còn trên form tạo.
+ * Đúng một gói nộp .zip|.rar trên hub (PUT …/required-deliverables).
+ * Spec 2026-11-28-single-archive-deliverable-design.md.
  */
 export const requiredFilenamesFormSchema = z
   .array(requiredFilenameItemSchema)
-  .min(1, 'Cần ít nhất 1 file phải nộp');
+  .length(1, 'Mỗi phiên chỉ khai đúng một gói nộp .zip hoặc .rar');
 
-export const replaceRequiredDeliverablesSchema = z
-  .object({
-    requiredFilenames: requiredFilenamesFormSchema,
-  })
-  .refine(
-    (values) => {
-      const seen = new Set<string>();
-      for (const filename of values.requiredFilenames) {
-        if (seen.has(filename.value)) return false;
-        seen.add(filename.value);
-      }
-      return true;
-    },
-    (values) => {
-      const seen = new Set<string>();
-      let duplicateIndex = -1;
-      for (const [index, filename] of values.requiredFilenames.entries()) {
-        if (seen.has(filename.value)) {
-          duplicateIndex = index;
-          break;
-        }
-        seen.add(filename.value);
-      }
-      const duplicateName =
-        duplicateIndex === -1 ? '' : values.requiredFilenames[duplicateIndex].value;
-      return {
-        message: `Tên file "${duplicateName}" bị trùng - mỗi file bắt buộc phải có tên khác nhau.`,
-        path:
-          duplicateIndex === -1
-            ? ['requiredFilenames']
-            : ['requiredFilenames', duplicateIndex, 'value'],
-      };
-    },
-  );
+export const replaceRequiredDeliverablesSchema = z.object({
+  requiredFilenames: requiredFilenamesFormSchema,
+});
 
 export type ReplaceRequiredDeliverablesFormValues = z.infer<
   typeof replaceRequiredDeliverablesSchema
