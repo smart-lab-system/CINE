@@ -41,19 +41,16 @@ describe('Submission overview — thi bù ở phiên khác + search theo sinh vi
   let sessionIndex = 0;
   /** Xem submission-overview-attendance.e2e-spec.ts: ba luật cùng bó khung giờ. */
   function nextWindow() {
-    // Bước 50 phút, không phải 20: phiên dài 15 phút nên bước 20 để lại khe
-    // 5 phút, và `ex_exam_session_teacher_gap` (migration 1789350000000) đòi
-    // >= 30 phút giữa hai phiên của CÙNG giảng viên. Mọi phiên ở đây do một
-    // giảng viên tạo, nên bước cũ làm cả file này đỏ.
-    const offsetMs = (5 + 50 * sessionIndex) * 60_000;
+    // Bước 80 phút: phiên 45 phút + khe >= 30 phút (teacher_gap).
+    const offsetMs = (5 + 80 * sessionIndex) * 60_000;
     sessionIndex += 1;
     const start = Date.now() + offsetMs;
     return {
       startTime: new Date(start).toISOString(),
-      endTime: new Date(start + 15 * 60_000).toISOString(),
+      endTime: new Date(start + 45 * 60_000).toISOString(),
       startPeriod: 1,
       endPeriod: 2,
-      durationMinutes: 90,
+      durationMinutes: 45,
     };
   }
 

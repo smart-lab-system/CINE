@@ -213,9 +213,10 @@ export function inferPeriodsFromLocal(
   if (startMin === null || endMin === null) return null;
 
   const startPeriod = SCHOOL_PERIODS.find((p) => p.startMinutes === startMin)?.period;
-  const endPeriod = SCHOOL_PERIODS.find((p) => p.endMinutes === endMin)?.period;
-  if (startPeriod === undefined || endPeriod === undefined || endPeriod < startPeriod) {
-    return null;
-  }
+  if (startPeriod === undefined) return null;
+  // endTime thường = start + duration (vd. 6h30 + 90 = 8h00), không phải
+  // đúng phút kết thúc tiết - dùng suy tiết phủ như form tạo phiên.
+  const endPeriod = inferEndPeriodFromEndMinutes(endMin, startPeriod);
+  if (endPeriod === null || endPeriod < startPeriod) return null;
   return { examDate, startPeriod, endPeriod };
 }

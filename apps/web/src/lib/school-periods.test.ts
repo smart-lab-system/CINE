@@ -47,11 +47,20 @@ describe('school-periods', () => {
     expect(inferDurationMinutes('2027-01-15T06:30', '2027-01-15T07:00')).toBeNull();
   });
 
-  it('inferPeriodsFromLocal khớp bảng tiết', () => {
+  it('inferPeriodsFromLocal khớp bảng tiết (end đúng phút kết thúc tiết)', () => {
     expect(inferPeriodsFromLocal('2027-01-15T06:30', '2027-01-15T09:00')).toEqual({
       examDate: '2027-01-15',
       startPeriod: 1,
       endPeriod: 3,
+    });
+  });
+
+  it('inferPeriodsFromLocal suy tiết KT từ start + duration (không cần đúng slot end)', () => {
+    // 6h30 + 90 phút = 8h00 - không trùng endMinutes tiết nào
+    expect(inferPeriodsFromLocal('2027-01-15T06:30', '2027-01-15T08:00')).toEqual({
+      examDate: '2027-01-15',
+      startPeriod: 1,
+      endPeriod: 2,
     });
   });
 

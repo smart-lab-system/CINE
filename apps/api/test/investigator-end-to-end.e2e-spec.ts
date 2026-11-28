@@ -119,7 +119,7 @@ describe('Đường điều tra chạy thật — từ tạo phiên qua API tớ
 
     // 2. Phiên với MỘT deliverable code_project/cpp — qua API mới của Task 1.
     const start = new Date(Date.now() + 3_600_000);
-    const end = new Date(start.getTime() + 2 * 3_600_000);
+    const end = new Date(start.getTime() + 90 * 60_000);
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set(as(owner.token))

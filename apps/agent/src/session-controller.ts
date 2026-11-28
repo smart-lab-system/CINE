@@ -888,16 +888,28 @@ export class SessionController extends EventEmitter {
       for (const name of packResult.packed) {
         this.log(`Đã đóng gói bài nộp: ${name}`);
       }
+      // Spec auto-pack §4: pack fail → fail deliverable, không upload nửa
+      // vời (zip stub rỗng lúc join vẫn nằm trên đĩa nếu pack lỗi).
+      const packFailedByName = new Map(
+        packResult.failed.map((fail) => [fail.filename, fail.reason]),
+      );
       for (const fail of packResult.failed) {
         this.log(`[CẢNH BÁO] Không đóng gói được ${fail.filename}: ${fail.reason}`);
       }
 
+      const baseReader = makeWorkspaceReader(this.workspaceDir!);
       const summary = await uploadAllDeliverables({
         socket: this.socket!,
         examSessionId: this.examSessionId,
         studentId: this.state.studentId,
         deliverables: this.requiredDeliverables,
-        readContent: makeWorkspaceReader(this.workspaceDir!),
+        readContent: async (deliverable) => {
+          const packReason = packFailedByName.get(deliverable.requiredFilename);
+          if (packReason) {
+            throw new Error(`Không đóng gói được: ${packReason}`);
+          }
+          return baseReader(deliverable);
+        },
         log: (message) => this.log(message),
       });
       this.patch({ submission: { finalizing: false, summary } });

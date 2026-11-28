@@ -113,7 +113,7 @@ describe('Backup (e2e)', () => {
         semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        endTime: new Date(Date.now() - 60_000 + 5_400_000).toISOString(),
         startPeriod: 1,
         endPeriod: 2,
         durationMinutes: 90,

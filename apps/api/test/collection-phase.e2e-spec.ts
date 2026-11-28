@@ -86,7 +86,7 @@ describe('Collection phase (e2e)', () => {
         // Bắt đầu trong quá khứ để agent join được ngay; kết thúc ở
         // tương lai để `isAcceptingUploads` còn mở theo đồng hồ thật.
         startTime: new Date(Date.now() - 60_000).toISOString(),
-        endTime: new Date(Date.now() + 3_600_000).toISOString(),
+        endTime: new Date(Date.now() - 60_000 + 5_400_000).toISOString(),
         startPeriod: 1,
         endPeriod: 2,
         durationMinutes: 90,
@@ -469,7 +469,7 @@ describe('Collection phase (e2e)', () => {
         semesterName: 'HK kiểm thử',
         examType: 'TK',
         startTime: session.endTime.toISOString(),
-        endTime: new Date(session.endTime.getTime() + 3_600_000).toISOString(),
+        endTime: new Date(session.endTime.getTime() + 90 * 60_000).toISOString(),
         startPeriod: 1,
         endPeriod: 2,
         durationMinutes: 90,

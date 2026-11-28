@@ -47,6 +47,7 @@ import {
   isExamOver,
 } from './exam-session.types';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { examScheduleCoherenceError } from './school-periods';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
 import {
   ensureDefaultProblem,
@@ -197,12 +198,25 @@ export class ExamSessionService {
     // session already holding it, and when — so the lecturer knows what to
     // change. Without it they get "This request conflicts with an existing
     // record" from PostgresExceptionFilter and no way to act on it.
+    const createStart = new Date(dto.startTime);
+    const createEnd = new Date(dto.endTime);
+    const createScheduleError = examScheduleCoherenceError(
+      createStart,
+      createEnd,
+      dto.startPeriod,
+      dto.endPeriod,
+      dto.durationMinutes,
+    );
+    if (createScheduleError) {
+      throw new BadRequestException(createScheduleError);
+    }
+
     await this.scheduleConflicts.assertNone(
       roomSnap.roomName,
       klass.id,
       teacherId,
-      new Date(dto.startTime),
-      new Date(dto.endTime),
+      createStart,
+      createEnd,
     );
 
     for (let attempt = 1; attempt <= EXAM_SESSION_CODE_MAX_ATTEMPTS; attempt++) {
@@ -464,7 +478,27 @@ export class ExamSessionService {
       dto.startPeriod !== undefined ? dto.startPeriod : session.startPeriod;
     const endPeriod =
       dto.endPeriod !== undefined ? dto.endPeriod : session.endPeriod;
+    const durationMinutes =
+      dto.durationMinutes !== undefined
+        ? dto.durationMinutes
+        : session.durationMinutes;
+
     if (
+      startPeriod !== null &&
+      endPeriod !== null &&
+      durationMinutes !== null
+    ) {
+      const scheduleError = examScheduleCoherenceError(
+        startTime,
+        endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
+      );
+      if (scheduleError) {
+        throw new BadRequestException(scheduleError);
+      }
+    } else if (
       startPeriod !== null &&
       endPeriod !== null &&
       endPeriod < startPeriod

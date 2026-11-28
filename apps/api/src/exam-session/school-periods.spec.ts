@@ -1,4 +1,5 @@
 import {
+  examScheduleCoherenceError,
   formatPeriodClock,
   getSchoolPeriod,
   isValidSchoolPeriod,
@@ -34,5 +35,29 @@ describe('school-periods', () => {
   it('formatPeriodClock', () => {
     expect(formatPeriodClock(6 * 60 + 30)).toBe('6h30');
     expect(formatPeriodClock(9 * 60)).toBe('9h00');
+  });
+
+  it('examScheduleCoherenceError chấp nhận cửa sổ khớp duration + tiết phủ', () => {
+    const start = new Date('2027-01-15T01:00:00.000Z');
+    const end = new Date(start.getTime() + 90 * 60_000);
+    expect(
+      examScheduleCoherenceError(start, end, 1, 2, 90),
+    ).toBeNull();
+  });
+
+  it('examScheduleCoherenceError từ chối duration lệch cửa sổ', () => {
+    const start = new Date('2027-01-15T01:00:00.000Z');
+    const end = new Date(start.getTime() + 60 * 60_000);
+    expect(examScheduleCoherenceError(start, end, 1, 2, 90)).toMatch(
+      /không khớp/,
+    );
+  });
+
+  it('examScheduleCoherenceError từ chối tiết kết thúc hẹp hơn duration', () => {
+    const start = new Date('2027-01-15T01:00:00.000Z');
+    const end = new Date(start.getTime() + 90 * 60_000);
+    expect(examScheduleCoherenceError(start, end, 1, 1, 90)).toMatch(
+      /kết thúc sớm/,
+    );
   });
 });

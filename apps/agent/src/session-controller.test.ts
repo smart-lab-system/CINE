@@ -485,6 +485,39 @@ describe('SessionController - after joining', () => {
     controller.quit();
   });
 
+  it('exam:finalize không upload zip stub khi đóng gói thất bại', async () => {
+    // Workspace chỉ còn stub zip rỗng lúc join + ignore dirs → pack fail;
+    // không được PUT archive rỗng lên server (spec auto-pack §4).
+    nextJoinReply = {
+      type: 'ack',
+      ack: {
+        requiredFiles: ['BaiNop.zip'],
+        requiredDeliverables: [
+          { id: 'd-zip', requiredFilename: 'BaiNop.zip', deliverableType: 'code_project' },
+        ],
+      },
+    };
+    const controller = new SessionController({
+      backendUrl: baseUrl,
+      workspaceRoot: tmpWorkspaceRoot(),
+    });
+    controller.join({ studentId: 'SV20120001', sessionCode: 'ABC123' });
+    await waitForState(
+      controller,
+      (s) => s.joinPhase === 'joined' && s.requiredFiles.length > 0,
+    );
+
+    const socket = [...ns.sockets.values()][ns.sockets.size - 1];
+    uploadedBodies = [];
+    socket.emit('exam:finalize', { examSessionId: 'exam-1', reason: 'manual' });
+
+    const state = await waitForState(controller, (s) => s.submission.summary !== null);
+    expect(state.submission.summary?.uploaded).toBe(0);
+    expect(state.submission.summary?.failed).toBe(1);
+    expect(uploadedBodies).toHaveLength(0);
+    controller.quit();
+  });
+
   it('does not re-attempt agent:join (and does not regress the UI) if the socket reconnects after exam:finalize', async () => {
     // Reproduces the bug report: teacher finalizes early, agent logs the
     // upload as done, but a later reconnect still re-emits agent:join -

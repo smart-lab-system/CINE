@@ -50,12 +50,23 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     return day;
   }
 
-  function windowAt(day: Date, startHour: number, endHour: number) {
+  /** Cửa sổ UTC: giờ:phút bắt đầu + thời lượng (mặc định 90 phút - khớp DTO). */
+  function windowAt(
+    day: Date,
+    startHour: number,
+    startMinute = 0,
+    durationMinutes = 90,
+  ) {
     const startTime = new Date(day);
-    startTime.setUTCHours(startHour);
-    const endTime = new Date(day);
-    endTime.setUTCHours(endHour);
-    return { startTime: startTime.toISOString(), endTime: endTime.toISOString(), startPeriod: 1, endPeriod: 2, durationMinutes: 90 };
+    startTime.setUTCHours(startHour, startMinute, 0, 0);
+    const endTime = new Date(startTime.getTime() + durationMinutes * 60_000);
+    return {
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes,
+    };
   }
 
   function createSession(body: Record<string, unknown>, token: string = ownerToken) {
@@ -200,7 +211,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Ca sáng',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
@@ -208,7 +219,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Ca chồng lấn',
       classId: otherClassId,
       roomName,
-      ...windowAt(day, 9, 11),
+      ...windowAt(day, 9),
     });
 
     expect(second.status).toBe(409);
@@ -233,7 +244,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Ca liền trước',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
@@ -241,7 +252,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Ca liền sau',
       classId: otherClassId,
       roomName,
-      ...windowAt(day, 10, 12),
+      ...windowAt(day, 9, 30),
     });
 
     expect(second.status).toBe(409);
@@ -258,27 +269,17 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Ca sáng',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
-    // 10:00 + 30 phút = 10:30. Biên CHÍNH XÁC, không phải 10:31: nới
-    // `end_time` của mọi dòng thêm đúng 30 phút rồi so nửa mở, nên khoảng
-    // cách đúng bằng 30 lọt qua. Cặp test này khoá cả hai phía của biên —
-    // chỉ có cái ở trên thì một lần "siết cho chắc" thành 45 phút vẫn xanh.
+    // Ca 1 kết thúc 09:30; cách đúng 30 phút → bắt đầu 10:00.
+    // Biên CHÍNH XÁC của ex_exam_session_teacher_gap.
     const second = await createSession({
       name: 'Ca kế tiếp',
       classId: otherClassId,
       roomName,
-      startTime: new Date(Date.UTC(
-        day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 10, 30,
-      )).toISOString(),
-      endTime: new Date(Date.UTC(
-        day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 12, 0,
-      )).toISOString(),
-      startPeriod: 1,
-      endPeriod: 2,
-      durationMinutes: 90,
+      ...windowAt(day, 10),
     });
 
     expect(second.status).toBe(201);
@@ -291,7 +292,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Thi môn sáng',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
@@ -299,7 +300,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Thi chồng giờ',
       classId,
       roomName: otherRoomName,
-      ...windowAt(day, 9, 11),
+      ...windowAt(day, 9),
     });
 
     expect(second.status).toBe(409);
@@ -322,7 +323,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Phòng 1',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
@@ -330,7 +331,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Phòng 2',
       classId: otherClassId,
       roomName: otherRoomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
 
     expect(second.status).toBe(409);
@@ -344,7 +345,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Của tôi',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
@@ -356,7 +357,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
         name: 'Của đồng nghiệp',
         classId: peerClassId,
         roomName: otherRoomName,
-        ...windowAt(day, 8, 10),
+        ...windowAt(day, 8),
       },
       peerToken,
     );
@@ -371,12 +372,12 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Kết thúc sớm',
       classId,
       roomName,
-      ...windowAt(day, 8, 12),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
-    // The room is a scarce resource: an exam that finished at 09:00 must
-    // not keep a lab blocked until the 12:00 it was scheduled to end at.
+    // The room is a scarce resource: an exam that finished early must
+    // not keep a lab blocked until the scheduled endTime.
     // finalize chỉ chuyển `active → collecting` — phải mở phiên trước.
     await openSession(app, ownerToken, first.body.id as string);
     const finalize = await request(app.getHttpServer())
@@ -388,7 +389,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Dùng lại phòng',
       classId: otherClassId,
       roomName,
-      ...windowAt(day, 9, 11),
+      ...windowAt(day, 9),
     });
 
     expect(second.status).toBe(201);
@@ -401,7 +402,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Sẽ bị huỷ',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
@@ -417,7 +418,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Thế chỗ',
       classId: otherClassId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
 
     expect(second.status).toBe(201);
@@ -430,11 +431,11 @@ describe('ExamSession schedule conflicts (e2e)', () => {
       name: 'Giữ phòng',
       classId,
       roomName,
-      ...windowAt(day, 8, 10),
+      ...windowAt(day, 8),
     });
     expect(first.status).toBe(201);
 
-    const { startTime, endTime } = windowAt(day, 9, 11);
+    const { startTime, endTime } = windowAt(day, 9);
     // Bypasses the service entirely. This is what proves the rule is a
     // property of the data rather than of one code path - a future
     // reschedule endpoint gets the same protection for free.
@@ -465,7 +466,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
 
   it('lets exactly one of two concurrent bookings win', async () => {
     const day = freshDay();
-    const window = windowAt(day, 8, 10);
+    const window = windowAt(day, 8);
 
     const [a, b] = await Promise.all([
       createSession({ name: 'Đua A', classId, roomName, ...window }),
@@ -480,15 +481,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     // The exam started, the lecturer forgot to create the session, and is
     // now creating it with the real start time. Refusing this would push
     // them into lying about when the exam began.
-    const startTime = new Date(Date.now() - 10 * 60_000).toISOString();
-    const endTime = new Date(Date.now() + 60 * 60_000).toISOString();
-
+    const startMs = Date.now() - 10 * 60_000;
     const response = await createSession({
       name: 'Khai muộn 10 phút',
       classId,
       roomName: otherRoomName,
-      startTime,
-      endTime,
+      startTime: new Date(startMs).toISOString(),
+      endTime: new Date(startMs + 90 * 60_000).toISOString(),
       startPeriod: 1,
       endPeriod: 2,
       durationMinutes: 90,
@@ -498,15 +497,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
   });
 
   it('refuses a session backdated beyond the grace window', async () => {
-    const startTime = new Date(Date.now() - 45 * 60_000).toISOString();
-    const endTime = new Date(Date.now() + 60 * 60_000).toISOString();
-
+    const startMs = Date.now() - 45 * 60_000;
     const response = await createSession({
       name: 'Khai muộn 45 phút',
       classId,
       roomName: otherRoomName,
-      startTime,
-      endTime,
+      startTime: new Date(startMs).toISOString(),
+      endTime: new Date(startMs + 90 * 60_000).toISOString(),
       startPeriod: 1,
       endPeriod: 2,
       durationMinutes: 90,
@@ -529,7 +526,7 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     const response = await createSession({
       name: `Khong gan lop ${Date.now()}`,
       roomName,
-      ...windowAt(freshDay(), 8, 10),
+      ...windowAt(freshDay(), 8),
     });
 
     expect(response.status).toBe(400);

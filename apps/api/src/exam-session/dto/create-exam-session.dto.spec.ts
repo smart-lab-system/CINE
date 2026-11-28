@@ -18,7 +18,7 @@ const BASE = {
   semesterName: 'HK1 2026-2027',
   examType: 'TK',
   startTime: '2027-01-01T08:00:00.000Z',
-  endTime: '2027-01-01T10:00:00.000Z',
+  endTime: '2027-01-01T09:30:00.000Z',
   startPeriod: 3,
   endPeriod: 5,
   durationMinutes: 90,

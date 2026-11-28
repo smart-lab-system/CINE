@@ -68,10 +68,9 @@ describe('Session lifecycle (e2e)', () => {
         semesterName: 'HK kiểm thử',
         examType: 'TK',
         // CreateExamSessionDto từ chối startTime lùi quá MAX_BACKDATE_MINUTES (30).
-        // Cửa sổ thời gian không liên quan gì tới archive/attention-close, nên chỉ
-        // cần một cửa sổ hợp lệ: bắt đầu sau 5 phút, dài 60 phút (>= 15 phút tối thiểu).
+        // Cửa sổ hợp lệ: bắt đầu sau 5 phút, dài 90 phút (khớp durationMinutes).
         startTime: new Date(Date.now() + 300_000).toISOString(),
-        endTime: new Date(Date.now() + 3_900_000).toISOString(),
+        endTime: new Date(Date.now() + 300_000 + 90 * 60_000).toISOString(),
         startPeriod: 1,
         endPeriod: 2,
         durationMinutes: 90,

@@ -67,3 +67,45 @@ export function formatPeriodClock(minutes: number): string {
   const m = minutes % 60;
   return `${h}h${String(m).padStart(2, '0')}`;
 }
+
+/**
+ * Kiểm start/end/period/duration khớp nhau (API create + updateSchedule).
+ * Không siết startTime phải đúng phút bắt đầu tiết - e2e / backdate live
+ * window dùng đồng hồ tường; form web đã map tiết → ISO.
+ */
+export function examScheduleCoherenceError(
+  startTime: Date,
+  endTime: Date,
+  startPeriod: number,
+  endPeriod: number,
+  durationMinutes: number,
+): string | null {
+  if (!(endTime > startTime)) {
+    return 'endTime phải sau startTime.';
+  }
+  if (!isValidSchoolPeriod(startPeriod) || !isValidSchoolPeriod(endPeriod)) {
+    return 'startPeriod/endPeriod phải trong khoảng 1-16.';
+  }
+  if (endPeriod < startPeriod) {
+    return 'endPeriod phải lớn hơn hoặc bằng startPeriod.';
+  }
+  if (!isExamDurationMinutes(durationMinutes)) {
+    return `durationMinutes phải là một trong: ${EXAM_DURATION_OPTIONS.join(', ')}.`;
+  }
+
+  const actualMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60_000);
+  if (actualMinutes !== durationMinutes) {
+    return `durationMinutes (${durationMinutes}) không khớp endTime - startTime (${actualMinutes} phút).`;
+  }
+
+  const start = getSchoolPeriod(startPeriod);
+  const end = getSchoolPeriod(endPeriod);
+  if (!start || !end) {
+    return 'startPeriod/endPeriod không hợp lệ.';
+  }
+  const examEndMinutes = start.startMinutes + durationMinutes;
+  if (end.endMinutes < examEndMinutes) {
+    return `endPeriod (tiết ${endPeriod}) kết thúc sớm hơn khung giờ thi (${durationMinutes} phút từ tiết ${startPeriod}).`;
+  }
+  return null;
+}
