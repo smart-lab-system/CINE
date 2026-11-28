@@ -15,7 +15,6 @@ import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import { STATE_ORDER, blockers, countStates, leverageOf, stateOf, type SessionState } from '@/lib/session-triage';
 import type { SessionOverviewItem } from '@/lib/api/submissions';
 import { countSystemUngradable } from '@/lib/regrade-triage';
-import { AiServiceBand } from './_components/AiServiceBand';
 import { BulkAcceptEssays } from './_components/BulkAcceptEssays';
 import { JplagFindingsPanel } from './_components/JplagFindingsPanel';
 import { LeverageLine } from './_components/LeverageLine';
@@ -25,6 +24,7 @@ import { RulerOriginNote } from './_components/RulerOriginNote';
 import { ResultsTable, type ResultsFilter } from './_components/ResultsTable';
 import { ReviewGroupsPanel } from './_components/ReviewGroupsPanel';
 import { RunningPanel } from './_components/RunningPanel';
+import { SessionIncidents, aiServiceIncident } from './_components/SessionIncidents';
 import { SessionHeader } from './_components/SessionHeader';
 import { stuckCountOf } from './_components/stuck';
 import { SessionList } from './_components/session-list/SessionList';
@@ -125,6 +125,8 @@ function SessionScreen({
   const editablePrepare = !running && (list.length === 0 || allUngradable);
   const showReview = !loading && viewPrepare && !editablePrepare;
   const showPrepareLink = !loading && !showReview && !editablePrepare;
+  // Khi `RunningPanel` hiện, chính nó vẽ thông báo sự cố (lỗi dịch vụ AI cùng bài kẹt, bài dừng): không vẽ lần hai ở đây.
+  const runningPanelShown = !loading && !showReview && running;
   const listHref = gradingSessionHref(sessionId, { state: initialState });
   const prepareHref = gradingSessionHref(sessionId, { view: 'prepare', state: initialState });
 
@@ -160,7 +162,7 @@ function SessionScreen({
         </Alert>
       )}
 
-      <AiServiceBand results={list} />
+      {!runningPanelShown && <SessionIncidents aiService={aiServiceIncident(list)} />}
 
       <JplagFindingsPanel sessionId={sessionId} />
 

@@ -374,6 +374,24 @@ describe('AI service band (G3 D12)', () => {
     render(<GradingPage />);
     expect(screen.queryByText(/Dịch vụ AI lỗi -/)).not.toBeInTheDocument();
   });
+
+  it('while the running panel is shown it owns the incident - no second one on the page', () => {
+    h.progress = { ...h.progress, data: progress({ pending: 2, done: 1, total: 3 }) };
+    h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
+    render(<GradingPage />);
+    expect(screen.getByTestId('running-panel')).toBeInTheDocument();
+    expect(screen.queryByText(/Dịch vụ AI lỗi -/)).not.toBeInTheDocument();
+    const props = h.runningProps[h.runningProps.length - 1] as { results: GradingResult[] };
+    expect(props.results.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('the incident still shows on the prepare screen when every result stopped for the same reason', () => {
+    h.results = { ...h.results, data: [stopped('a'), stopped('b'), stopped('c')] };
+    render(<GradingPage />);
+    expect(screen.getByTestId('prepare-panel')).toBeInTheDocument();
+    expect(screen.getByText(/Dịch vụ AI lỗi - 3 bài không chấm được cùng một lý do/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Chấm lại \d+ bài lỗi hệ thống/ })).toHaveLength(1);
+  });
 });
 
 describe('list view - filter and the leverage line', () => {
