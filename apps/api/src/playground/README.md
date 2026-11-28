@@ -61,7 +61,16 @@ Hai cách phổ biến:
 - `POST /playground/runs/sample-express`
 - `language=spring-boot` / `vite-react` / `express` trên upload
 
-Env: `PLAYGROUND_SAMPLE_SPRING_DIR`, `PLAYGROUND_SAMPLE_VITE_DIR`, `PLAYGROUND_SAMPLE_EXPRESS_DIR`, `PLAYGROUND_DB_NAME`, `PLAYGROUND_DB_PASSWORD`, `PLAYGROUND_PREVIEW_HOST`, `PLAYGROUND_AWS_*` / `AWS_*`.
+Env: `PLAYGROUND_SAMPLE_SPRING_DIR`, `PLAYGROUND_SAMPLE_VITE_DIR`, `PLAYGROUND_SAMPLE_EXPRESS_DIR`, `PLAYGROUND_DB_NAME`, `PLAYGROUND_DB_PASSWORD`, `PLAYGROUND_PREVIEW_HOST`, `PLAYGROUND_PUBLIC_BASE`, `PLAYGROUND_AWS_*` / `AWS_*`.
+
+### Preview công khai từ bài chấm
+
+Khi tạo run từ grading, slug = `{mssv}-{ten-khong-dau}`. Nếu set `PLAYGROUND_PUBLIC_BASE` (vd. `https://examcine.site` hoặc `http://localhost:3007`):
+
+- `previewUrl` = `{PLAYGROUND_PUBLIC_BASE}/pg/{slug}/`
+- Next.js `/pg/[slug]/...` proxy → API `/playground/proxy/{slug}/...` → Docker `127.0.0.1:hostPort`
+
+API và Docker phải cùng máy. Sample/paste không có slug vẫn dùng `http://127.0.0.1:port/`.
 
 ## Express / CNM + AWS
 

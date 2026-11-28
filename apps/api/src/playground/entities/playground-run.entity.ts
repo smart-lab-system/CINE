@@ -64,6 +64,10 @@ export class PlaygroundRunEntity extends BaseEntity {
   @Column({ name: 'preview_url', type: 'varchar', length: 1024, nullable: true })
   previewUrl!: string | null;
 
+  /** Slug công khai `/pg/{slug}/` (từ bài chấm: mssv-hovaten). Unique qua migration. */
+  @Column({ name: 'preview_slug', type: 'varchar', length: 160, nullable: true })
+  previewSlug!: string | null;
+
   @Column({ name: 'container_name', type: 'varchar', length: 128, nullable: true })
   containerName!: string | null;
 

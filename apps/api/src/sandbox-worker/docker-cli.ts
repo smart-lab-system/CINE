@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 export interface CliResult {
   code: number;
@@ -24,7 +26,9 @@ export interface DockerCli {
 
 export class DockerUnavailableError extends Error {
   constructor(detail: string) {
-    super(`không gọi được docker: ${detail}`);
+    super(
+      `không gọi được docker: ${detail} - bật Docker Desktop, kiểm tra PATH, hoặc set DOCKER_BIN; rồi khởi động lại API`,
+    );
     this.name = 'DockerUnavailableError';
   }
 }
@@ -32,10 +36,33 @@ export class DockerUnavailableError extends Error {
 const MAX_STDERR = 64 * 1024;
 
 /**
+ * Terminal Cursor / process Nest đôi khi không kế thừa PATH có Docker.
+ * Ưu tiên `DOCKER_BIN`, rồi đường cài Docker Desktop (Windows), rồi `docker` trên PATH.
+ */
+export function resolveDockerBin(): string {
+  const fromEnv = process.env.DOCKER_BIN?.trim();
+  if (fromEnv) return fromEnv;
+
+  if (process.platform === 'win32') {
+    const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files';
+    const programFilesX86 = process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
+    const candidates = [
+      join(programFiles, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
+      join(programFilesX86, 'Docker', 'Docker', 'resources', 'bin', 'docker.exe'),
+    ];
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+
+  return 'docker';
+}
+
+/**
  * Gọi Docker CLI. Giết tiến trình CLI khi quá trần thời gian KHÔNG giết
  * container — người gọi luôn `docker rm -f` trong `finally`.
  */
-export function spawnCli(bin = 'docker'): DockerCli {
+export function spawnCli(bin = resolveDockerBin()): DockerCli {
   return {
     run(args, opts) {
       return new Promise((resolve, reject) => {

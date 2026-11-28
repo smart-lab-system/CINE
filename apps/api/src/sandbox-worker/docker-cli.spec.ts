@@ -1,6 +1,40 @@
-import { DockerUnavailableError, spawnCli } from './docker-cli';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { DockerUnavailableError, resolveDockerBin, spawnCli } from './docker-cli';
 
 const node = spawnCli(process.execPath);
+
+describe('resolveDockerBin', () => {
+  const prev = process.env.DOCKER_BIN;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.DOCKER_BIN;
+    else process.env.DOCKER_BIN = prev;
+  });
+
+  it('ưu tiên DOCKER_BIN', () => {
+    process.env.DOCKER_BIN = 'C:\\custom\\docker.exe';
+    expect(resolveDockerBin()).toBe('C:\\custom\\docker.exe');
+  });
+
+  it('trên Windows tìm docker.exe Docker Desktop nếu có', () => {
+    delete process.env.DOCKER_BIN;
+    if (process.platform !== 'win32') return;
+    const expected = join(
+      process.env.ProgramFiles ?? 'C:\\Program Files',
+      'Docker',
+      'Docker',
+      'resources',
+      'bin',
+      'docker.exe',
+    );
+    if (existsSync(expected)) {
+      expect(resolveDockerBin()).toBe(expected);
+    } else {
+      expect(resolveDockerBin()).toBe('docker');
+    }
+  });
+});
 
 describe('spawnCli', () => {
   it('chuyển stdin vào, lấy stdout và mã thoát ra', async () => {

@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, Play, Square, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { ArrowLeft, ExternalLink, Play, Square, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +43,11 @@ function isDone(status: PlaygroundRun['status']) {
 }
 
 export default function TeacherPlaygroundPage() {
+  const searchParams = useSearchParams();
+  const runIdParam = searchParams.get('runId');
+  const resultIdParam = searchParams.get('resultId');
+  const sessionIdParam = searchParams.get('sessionId');
+
   const [language, setLanguage] = useState<PlaygroundLanguage>('static');
   const [source, setSource] = useState('');
   const [files, setFiles] = useState<FileList | null>(null);
@@ -48,6 +55,7 @@ export default function TeacherPlaygroundPage() {
   const [entryChoice, setEntryChoice] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadedRunId, setLoadedRunId] = useState<string | null>(null);
 
   const isStatic = language === 'static';
   const isSpring = language === 'spring-boot';
@@ -55,12 +63,49 @@ export default function TeacherPlaygroundPage() {
   const isExpress = language === 'express';
   const isPreviewLang = isStatic || isSpring || isVite || isExpress;
 
+  const gradingBackHref =
+    resultIdParam != null
+      ? sessionIdParam
+        ? `/teacher/grading/${resultIdParam}?sessionId=${sessionIdParam}`
+        : `/teacher/grading/${resultIdParam}`
+      : null;
+
   useEffect(() => {
-    setSource(SAMPLES[language] ?? '');
+    if (!runIdParam || loadedRunId === runIdParam) return;
+    let cancelled = false;
+    const load = async () => {
+      setBusy(true);
+      setError(null);
+      try {
+        const existing = await getPlaygroundRun(runIdParam);
+        if (cancelled) return;
+        setLanguage(existing.language);
+        setSource(SAMPLES[existing.language] ?? '');
+        setFiles(null);
+        setRun(existing);
+        setLoadedRunId(runIdParam);
+        if (existing.status === 'needs_entry') {
+          setEntryChoice(existing.candidates?.[0] ?? '');
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [runIdParam, loadedRunId]);
+
+  const onLanguageChange = (next: PlaygroundLanguage) => {
+    setLanguage(next);
+    setSource(SAMPLES[next] ?? '');
     setFiles(null);
     setRun(null);
     setError(null);
-  }, [language]);
+  };
 
   useEffect(() => {
     if (!run) return;
@@ -191,6 +236,15 @@ export default function TeacherPlaygroundPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {gradingBackHref ? (
+        <Link
+          href={gradingBackHref}
+          className="flex w-fit items-center gap-1.5 text-caption text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          Quay lại bài chấm
+        </Link>
+      ) : null}
       <PageHeader
         title="Playground"
         description="Console, web tĩnh, Vite+React (npm build → nginx), hoặc Spring Boot + MariaDB. Lần đầu build image có thể vài phút."
@@ -203,7 +257,7 @@ export default function TeacherPlaygroundPage() {
             <select
               className="mt-1 flex h-10 w-full rounded-md border border-border bg-surface px-3 text-sm"
               value={language}
-              onChange={(e) => setLanguage(e.target.value as PlaygroundLanguage)}
+              onChange={(e) => onLanguageChange(e.target.value as PlaygroundLanguage)}
             >
               {LANGUAGES.map((l) => (
                 <option key={l.value} value={l.value}>

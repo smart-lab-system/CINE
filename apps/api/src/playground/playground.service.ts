@@ -5,10 +5,24 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { access } from 'node:fs/promises';
 import { Queue } from 'bullmq';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
+import {
+  detectArchiveFormat,
+  listArchiveEntries,
+} from '../submission/archive-check/archive-reader';
+import { StorageService } from '../storage/storage.service';
+import {
+  normalizeListedPaths,
+  resolvePlaygroundLanguage,
+  zipExtractModes,
+} from './course-playground-language';
+import {
+  buildPreviewSlug,
+  buildPublicPreviewUrl,
+} from './preview-slug';
 import { scanEntry, type ConsoleLanguage, type PlaygroundLanguage } from './entry-scanner';
 import { scanHtmlEntry } from './html-entry';
 import {
@@ -78,6 +92,9 @@ export class PlaygroundService {
     private readonly runs: Repository<PlaygroundRunEntity>,
     @InjectQueue(PLAYGROUND_QUEUE)
     private readonly queue: Queue<{ runId: string }>,
+    @InjectDataSource()
+    private readonly ds: DataSource,
+    private readonly storage: StorageService,
   ) {}
 
   toView(row: PlaygroundRunEntity): PlaygroundRunView {
@@ -127,6 +144,7 @@ export class PlaygroundService {
       startedAt: null,
       finishedAt: null,
       previewUrl: null,
+      previewSlug: null,
       containerName: null,
       hostPort: null,
       expiresAt: null,
@@ -233,6 +251,139 @@ export class PlaygroundService {
     }
 
     return this.applyScan(row, workDir, [...new Set(finalPaths)]);
+  }
+
+  /**
+   * Tạo run từ bài nộp gắn grading_result (zip hoặc file lẻ trên object storage).
+   * Quyền: teacher sở hữu phiên (cùng logic findResultForOwner).
+   */
+  async createFromGradingResult(
+    accountId: string,
+    gradingResultId: string,
+  ): Promise<PlaygroundRunView> {
+    const [row] = await this.ds.query(
+      `SELECT s.storage_key,
+              s.student_mssv,
+              s.student_name_input,
+              rd.deliverable_type,
+              rd.language AS deliverable_language,
+              rd.required_filename,
+              c.code AS course_code,
+              es.teacher_id
+         FROM examcollect.grading_result g
+         JOIN examcollect.submission s ON s.id = g.submission_id
+         JOIN examcollect.required_deliverable rd ON rd.id = s.required_deliverable_id
+         JOIN examcollect.exam_session es ON es.id = s.exam_session_id
+         LEFT JOIN examcollect.class cl ON cl.id = es.class_id
+         LEFT JOIN examcollect.course c ON c.id = cl.course_id
+        WHERE g.id = $1`,
+      [gradingResultId],
+    );
+    if (!row) throw new NotFoundException('Không tìm thấy bài chấm.');
+    if (row.teacher_id !== accountId) {
+      throw new ForbiddenException('Bạn không sở hữu phiên thi của bài này.');
+    }
+    if (row.deliverable_type !== 'code_project') {
+      throw new BadRequestException('Chỉ chạy thử được bài code_project.');
+    }
+    if (!row.storage_key) {
+      throw new BadRequestException('Bài này chưa có file trên kho lưu trữ.');
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await this.storage.getObject(row.storage_key);
+    } catch {
+      throw new BadRequestException('Không đọc được file bài nộp từ kho lưu trữ.');
+    }
+    if (!buffer.length) {
+      throw new BadRequestException('File bài nộp trống.');
+    }
+
+    const format = detectArchiveFormat(buffer);
+    let hintPaths: string[] = [];
+    if (format === 'zip') {
+      try {
+        hintPaths = normalizeListedPaths(await listArchiveEntries(buffer, 'zip'));
+      } catch (e) {
+        throw new BadRequestException(
+          e instanceof Error ? `Không đọc được zip bài nộp: ${e.message}` : 'Không đọc được zip bài nộp.',
+        );
+      }
+    } else if (format === 'rar') {
+      throw new BadRequestException(
+        'Playground chưa hỗ trợ RAR - hãy dùng zip hoặc nộp lại dạng zip.',
+      );
+    } else {
+      const name =
+        typeof row.required_filename === 'string' && row.required_filename.includes('.')
+          ? String(row.required_filename).replace(/\{[^}]+\}/g, 'file')
+          : 'submission.bin';
+      hintPaths = [name.includes('/') ? name.split('/').pop()! : name];
+    }
+
+    let language: PlaygroundLanguage;
+    try {
+      language = resolvePlaygroundLanguage({
+        courseCode: row.course_code,
+        deliverableLanguage: row.deliverable_language,
+        filePaths: hintPaths,
+      });
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : String(e));
+    }
+
+    const runRow = this.emptyRow(accountId, language);
+    runRow.previewSlug = await this.allocatePreviewSlug(
+      buildPreviewSlug(String(row.student_mssv ?? ''), row.student_name_input),
+    );
+    await this.runs.save(runRow);
+    const workDir = await ensureWorkDir(runRow.id);
+
+    let paths: string[] = [];
+    try {
+      if (format === 'zip') {
+        const modes = zipExtractModes(language);
+        paths = await extractZipToWorkDir(buffer, workDir, modes);
+      } else {
+        const binaryOk =
+          language === 'static' ||
+          language === 'spring-boot' ||
+          language === 'vite-react' ||
+          language === 'express';
+        const leaf = hintPaths[0] || conventionName(language);
+        const rel =
+          language === 'c' ||
+          language === 'cpp' ||
+          language === 'java' ||
+          language === 'python'
+            ? leaf.match(/\.(c|cpp|cc|cxx|java|py)$/i)
+              ? leaf
+              : conventionName(language)
+            : leaf;
+        await writeFiles(workDir, [{ path: rel, content: buffer }], { binaryOk });
+        paths = [rel.replace(/\\/g, '/')];
+      }
+    } catch (e) {
+      runRow.status = 'failed';
+      runRow.error = e instanceof Error ? e.message : String(e);
+      await this.runs.save(runRow);
+      return this.toView(runRow);
+    }
+
+    const normalized = stripSingleRootDir(paths);
+    if (normalized.stripped && normalized.paths !== paths) {
+      await remapWorkDirStripRoot(workDir, normalized.rootPrefix!);
+    }
+    const finalPaths = normalized.paths;
+    if (finalPaths.length === 0) {
+      runRow.status = 'failed';
+      runRow.error = 'không có file nào sau khi nạp bài nộp';
+      await this.runs.save(runRow);
+      return this.toView(runRow);
+    }
+
+    return this.applyScan(runRow, workDir, [...new Set(finalPaths)]);
   }
 
   /** Nạp sample project web tĩnh từ thư mục monorepo. */
@@ -649,7 +800,7 @@ export class PlaygroundService {
         });
         row.containerName = preview.containerName;
         row.hostPort = preview.hostPort;
-        row.previewUrl = preview.previewUrl;
+        row.previewUrl = this.publicOrLocalPreviewUrl(row, preview.previewUrl, row.entryPath);
         row.expiresAt = new Date(Date.now() + PLAYGROUND_STATIC_TTL_MS);
         row.error = null;
         row.status = 'running';
@@ -672,7 +823,7 @@ export class PlaygroundService {
         });
         row.containerName = preview.composeProject;
         row.hostPort = preview.hostPort;
-        row.previewUrl = preview.previewUrl;
+        row.previewUrl = this.publicOrLocalPreviewUrl(row, preview.previewUrl);
         row.expiresAt = new Date(Date.now() + PLAYGROUND_SPRING_TTL_MS);
         row.error = null;
         row.status = 'running';
@@ -695,7 +846,7 @@ export class PlaygroundService {
         });
         row.containerName = preview.containerName;
         row.hostPort = preview.hostPort;
-        row.previewUrl = preview.previewUrl;
+        row.previewUrl = this.publicOrLocalPreviewUrl(row, preview.previewUrl);
         row.expiresAt = new Date(Date.now() + PLAYGROUND_VITE_TTL_MS);
         row.error = null;
         row.status = 'running';
@@ -719,7 +870,7 @@ export class PlaygroundService {
         });
         row.containerName = preview.containerName;
         row.hostPort = preview.hostPort;
-        row.previewUrl = preview.previewUrl;
+        row.previewUrl = this.publicOrLocalPreviewUrl(row, preview.previewUrl);
         row.expiresAt = new Date(Date.now() + PLAYGROUND_EXPRESS_TTL_MS);
         row.error = null;
         row.status = 'running';
@@ -761,5 +912,39 @@ export class PlaygroundService {
     row.finishedAt = new Date();
     row.containerName = null;
     await this.runs.save(row);
+  }
+
+  private publicOrLocalPreviewUrl(
+    row: PlaygroundRunEntity,
+    localUrl: string,
+    entryPath?: string | null,
+  ): string {
+    if (!row.previewSlug) return localUrl;
+    return buildPublicPreviewUrl(row.previewSlug, entryPath) ?? localUrl;
+  }
+
+  /** Slug chưa dùng; nếu trùng thì thêm hậu tố từ id tạm. */
+  private async allocatePreviewSlug(base: string): Promise<string> {
+    const cleaned = base.replace(/^-+|-+$/g, '').slice(0, 140) || 'sv';
+    for (let n = 0; n < 50; n++) {
+      const candidate = n === 0 ? cleaned : `${cleaned}-${n + 1}`.slice(0, 160);
+      const hit = await this.runs.findOne({ where: { previewSlug: candidate } });
+      if (!hit) return candidate;
+    }
+    return `${cleaned}-${Date.now().toString(36)}`.slice(0, 160);
+  }
+
+  /**
+   * Lookup run đang chạy theo slug công khai (cho reverse proxy).
+   * Không yêu cầu JWT - TTL + status là hàng rào.
+   */
+  async resolveProxyTarget(slug: string): Promise<{ hostPort: number } | null> {
+    const cleaned = slug.trim().toLowerCase();
+    if (!cleaned || cleaned.length > 160) return null;
+    const row = await this.runs.findOne({ where: { previewSlug: cleaned } });
+    if (!row) return null;
+    if (row.status !== 'running' || row.hostPort == null) return null;
+    if (row.expiresAt && row.expiresAt.getTime() <= Date.now()) return null;
+    return { hostPort: row.hostPort };
   }
 }

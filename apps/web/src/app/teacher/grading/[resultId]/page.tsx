@@ -3,7 +3,7 @@
 import { use, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FolderOpen } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { useSessionOverview } from '@/hooks/useSubmissionOverview';
 import type { ReviewCriterion } from '@/lib/api/grading';
 import { isQsRubric } from '@/lib/qs-rubric-display';
 import { isReadingCode } from '@/lib/session-triage';
+import { PlaygroundFromSubmissionButton } from '../_components/PlaygroundFromSubmissionButton';
 import { RegradeButton } from '../_components/RegradeButton';
 import { GradingInProgressAlert } from '../_components/GradingInProgressAlert';
 import { AnswerPane } from './_components/AnswerPane';
@@ -246,6 +247,21 @@ export default function GradingDetailPage({
               size="sm"
             />
           )}
+          {result.deliverableType === 'code_project' ? (
+            <PlaygroundFromSubmissionButton resultId={result.id} sessionId={sessionId || undefined} />
+          ) : null}
+          <Button asChild variant="outline" size="sm">
+            <Link
+              href={
+                sessionId
+                  ? `/teacher/grading/${resultId}/browse?sessionId=${sessionId}`
+                  : `/teacher/grading/${resultId}/browse`
+              }
+            >
+              <FolderOpen className="h-4 w-4" aria-hidden="true" />
+              Xem bài nộp
+            </Link>
+          </Button>
         </div>
       </div>
 

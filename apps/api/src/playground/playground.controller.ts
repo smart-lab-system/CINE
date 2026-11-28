@@ -69,6 +69,16 @@ export class PlaygroundController {
     return this.playground.createFromSampleExpress(req.user!.sub);
   }
 
+  /** Tạo run từ bài nộp gắn grading_result (object storage). */
+  @Post('runs/from-grading-result/:gradingResultId')
+  @Roles('teacher', 'admin')
+  createFromGradingResult(
+    @Req() req: Request,
+    @Param('gradingResultId', ParseUUIDPipe) gradingResultId: string,
+  ) {
+    return this.playground.createFromGradingResult(req.user!.sub, gradingResultId);
+  }
+
   /** Tạo run từ upload file / zip (multipart). */
   @Post('runs/upload')
   @Roles('teacher', 'admin')
