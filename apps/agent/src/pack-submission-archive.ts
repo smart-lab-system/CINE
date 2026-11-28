@@ -1,7 +1,8 @@
 /**
- * Đóng gói workspace vào deliverable `.zip`/`.rar` lúc finalize/recollect.
+ * Đóng gói thư mục stem của deliverable `.zip`/`.rar` lúc finalize/recollect.
  *
- * Spec: docs/superpowers/specs/2026-11-28-submission-archive-auto-pack-design.md
+ * Spec: docs/superpowers/specs/2026-11-28-archive-work-folder-pack-design.md
+ * (nén chỉ nội dung trong stem; archive không có lớp folder bọc).
  */
 
 import { spawn } from 'node:child_process';
@@ -9,12 +10,11 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import JSZip from 'jszip';
-import { MATERIALS_DIRNAME, INSTRUCTIONS_FILENAME } from './exam-materials';
 import {
   collectPackFiles,
   type SnapshotFile,
 } from './snapshot';
-import { archiveKindOf } from './workspace-files';
+import { archiveKindOf, archiveStemOf } from './workspace-files';
 
 export interface PackableDeliverable {
   requiredFilename: string;
@@ -65,8 +65,8 @@ async function packZip(files: SnapshotFile[], destPath: string): Promise<void> {
 }
 
 /**
- * Gọi WinRAR CLI: thêm từng file theo relative path, ghi ra destPath.
- * CWD = workspaceDir để đường dẫn trong archive khớp cây làm bài.
+ * Gọi WinRAR CLI: thêm từng file theo relative path trong stem.
+ * CWD = stemDir để đường dẫn trong archive = nội dung folder (không có lớp bọc).
  */
 export async function packRarWithWinRar(args: {
   workspaceDir: string;
@@ -89,8 +89,6 @@ export async function packRarWithWinRar(args: {
     os.tmpdir(),
     `examcollect-rar-list-${process.pid}-${Date.now()}.txt`,
   );
-  // WinRAR listfile: một đường dẫn tương đối mỗi dòng. Không dùng -ep1 để
-  // giữ nguyên `src\Main.java` (không chỉ còn basename).
   const listBody = args.files
     .map((f) => f.relativePath.replace(/\//g, path.sep))
     .join('\n');
@@ -135,8 +133,8 @@ export async function packRarWithWinRar(args: {
 }
 
 /**
- * Với mỗi deliverable `.zip`/`.rar`: nén workspace (đã ignore) ghi đè file nộp.
- * Deliverable không phải archive → bỏ qua.
+ * Với mỗi deliverable `.zip`/`.rar`: nén nội dung thư mục stem ghi đè file gói
+ * ở root workspace. Deliverable không phải archive → bỏ qua.
  */
 export async function packSubmissionArchives(
   workspaceDir: string,
@@ -156,17 +154,22 @@ export async function packSubmissionArchives(
     return { packed, failed };
   }
 
-  const allRootNames = new Set(deliverables.map((d) => d.requiredFilename));
-  allRootNames.add(INSTRUCTIONS_FILENAME);
-
   for (const deliverable of archiveDeliverables) {
     const filename = deliverable.requiredFilename;
     const kind = archiveKindOf(filename)!;
-    const excludeRootNames = new Set(allRootNames);
+    const stem = archiveStemOf(filename)!;
+    const stemDir = path.join(workspaceDir, stem);
 
-    const collected = collectPackFiles(workspaceDir, {
-      excludeRootNames,
-      extraIgnoredDirectories: new Set([MATERIALS_DIRNAME]),
+    if (!fs.existsSync(stemDir) || !fs.statSync(stemDir).isDirectory()) {
+      failed.push({
+        filename,
+        reason: `Không thấy thư mục làm bài "${stem}" để đóng gói.`,
+      });
+      continue;
+    }
+
+    const collected = collectPackFiles(stemDir, {
+      excludeRootNames: new Set(),
     });
 
     if (!collected.ok) {
@@ -177,7 +180,7 @@ export async function packSubmissionArchives(
     if (collected.files.length === 0) {
       failed.push({
         filename,
-        reason: 'Không có file nào trong thư mục bài làm để đóng gói (sau khi bỏ ignore).',
+        reason: `Thư mục "${stem}" không có file nào để đóng gói (sau khi bỏ ignore).`,
       });
       continue;
     }
@@ -194,7 +197,7 @@ export async function packSubmissionArchives(
         }
         const packRar = deps?.packRar ?? packRarWithWinRar;
         await packRar({
-          workspaceDir,
+          workspaceDir: stemDir,
           files: collected.files,
           destPath,
         });

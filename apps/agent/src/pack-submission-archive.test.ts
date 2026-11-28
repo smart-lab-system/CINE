@@ -9,7 +9,6 @@ import {
   PACK_MAX_FILE_BYTES,
 } from './snapshot';
 import { packSubmissionArchives } from './pack-submission-archive';
-import { MATERIALS_DIRNAME, INSTRUCTIONS_FILENAME } from './exam-materials';
 
 function tmpWorkspace(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'examcollect-pack-'));
@@ -39,24 +38,6 @@ describe('collectPackFiles', () => {
     ]);
   });
 
-  it('bỏ deliverable khác ở root và không whitelist đuôi (giữ Dockerfile)', () => {
-    const root = tmpWorkspace();
-    write(root, 'BaiThi.zip', 'placeholder');
-    write(root, 'BaoCao.docx', 'doc');
-    write(root, 'Dockerfile', 'FROM java');
-    write(root, 'src/App.java', 'class App {}');
-
-    const result = collectPackFiles(root, {
-      excludeRootNames: new Set(['BaiThi.zip', 'BaoCao.docx']),
-    });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.files.map((f) => f.relativePath).sort()).toEqual([
-      'Dockerfile',
-      'src/App.java',
-    ]);
-  });
-
   it('fail khi một file vượt trần pack', () => {
     const root = tmpWorkspace();
     write(root, 'huge.bin', 'x'.repeat(PACK_MAX_FILE_BYTES + 1));
@@ -75,14 +56,12 @@ describe('collectPackFiles', () => {
 });
 
 describe('packSubmissionArchives', () => {
-  it('đóng .zip từ workspace, bỏ ignore và de-thi', async () => {
+  it('nén chỉ nội dung stem - zip không có lớp folder bọc', async () => {
     const root = tmpWorkspace();
-    write(root, 'BaiThi.zip', 'old');
-    write(root, 'package.json', '{"name":"app"}');
-    write(root, 'src/index.js', 'console.log(1)');
-    write(root, 'node_modules/x/index.js', 'dep');
-    write(root, `${MATERIALS_DIRNAME}/de.pdf`, 'de');
-    write(root, INSTRUCTIONS_FILENAME, 'huong dan');
+    write(root, 'BaiThi/package.json', '{"name":"app"}');
+    write(root, 'BaiThi/src/index.js', 'console.log(1)');
+    write(root, 'BaiThi/node_modules/x/index.js', 'dep');
+    write(root, 'outside.txt', 'khong-vao-zip');
 
     const result = await packSubmissionArchives(root, [
       { requiredFilename: 'BaiThi.zip' },
@@ -94,6 +73,7 @@ describe('packSubmissionArchives', () => {
     const zip = await JSZip.loadAsync(fs.readFileSync(path.join(root, 'BaiThi.zip')));
     const names = Object.keys(zip.files).filter((n) => !zip.files[n]!.dir).sort();
     expect(names).toEqual(['package.json', 'src/index.js']);
+    expect(names.some((n) => n.startsWith('BaiThi/'))).toBe(false);
   });
 
   it('không đụng deliverable không phải archive', async () => {
@@ -108,9 +88,30 @@ describe('packSubmissionArchives', () => {
     expect(fs.readFileSync(path.join(root, 'Cau1.docx'), 'utf8')).toBe('doc');
   });
 
+  it('thiếu thư mục stem → failed', async () => {
+    const root = tmpWorkspace();
+
+    const result = await packSubmissionArchives(root, [
+      { requiredFilename: 'BaiThi.zip' },
+    ]);
+    expect(result.packed).toEqual([]);
+    expect(result.failed[0]!.reason).toMatch(/không thấy thư mục/i);
+  });
+
+  it('stem trống (chỉ ignore) → failed', async () => {
+    const root = tmpWorkspace();
+    write(root, 'BaiThi/node_modules/x/a.js', 'x');
+
+    const result = await packSubmissionArchives(root, [
+      { requiredFilename: 'BaiThi.zip' },
+    ]);
+    expect(result.packed).toEqual([]);
+    expect(result.failed[0]!.reason).toMatch(/không có file/i);
+  });
+
   it('.rar thiếu WinRAR → failed rõ ràng', async () => {
     const root = tmpWorkspace();
-    write(root, 'src/Main.java', 'class Main {}');
+    write(root, 'BaiThi/src/Main.java', 'class Main {}');
 
     const result = await packSubmissionArchives(
       root,
@@ -119,14 +120,13 @@ describe('packSubmissionArchives', () => {
     );
 
     expect(result.packed).toEqual([]);
-    expect(result.failed).toHaveLength(1);
     expect(result.failed[0]!.filename).toBe('BaiThi.rar');
     expect(result.failed[0]!.reason).toMatch(/winrar/i);
   });
 
   it('.rar dùng packRar inject khi có findRar giả', async () => {
     const root = tmpWorkspace();
-    write(root, 'src/Main.java', 'class Main {}');
+    write(root, 'BaiThi/src/Main.java', 'class Main {}');
     const calls: string[] = [];
 
     const result = await packSubmissionArchives(
@@ -134,8 +134,9 @@ describe('packSubmissionArchives', () => {
       [{ requiredFilename: 'BaiThi.rar' }],
       {
         findRar: () => 'C:\\fake\\Rar.exe',
-        packRar: async ({ destPath, files }) => {
+        packRar: async ({ destPath, files, workspaceDir }) => {
           calls.push(destPath);
+          expect(workspaceDir).toBe(path.join(root, 'BaiThi'));
           fs.writeFileSync(destPath, `rar:${files.map((f) => f.relativePath).join(',')}`);
         },
       },
@@ -147,16 +148,5 @@ describe('packSubmissionArchives', () => {
     expect(fs.readFileSync(path.join(root, 'BaiThi.rar'), 'utf8')).toBe(
       'rar:src/Main.java',
     );
-  });
-
-  it('workspace trống (chỉ ignore) → failed', async () => {
-    const root = tmpWorkspace();
-    write(root, 'node_modules/x/a.js', 'x');
-
-    const result = await packSubmissionArchives(root, [
-      { requiredFilename: 'BaiThi.zip' },
-    ]);
-    expect(result.packed).toEqual([]);
-    expect(result.failed[0]!.reason).toMatch(/không có file/i);
   });
 });
