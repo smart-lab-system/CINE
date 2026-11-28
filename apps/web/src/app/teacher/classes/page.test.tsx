@@ -54,7 +54,7 @@ describe('TeacherClassesPage', () => {
     render(<TeacherClassesPage />);
     expect(screen.getByText('CTDL001')).toBeInTheDocument();
     expect(screen.getByText('CTDL&GT')).toBeInTheDocument();
-    expect(screen.getByText('HK1 2025-2026')).toBeInTheDocument();
+    expect(screen.getByText('HK1 (2025-2026)')).toBeInTheDocument();
     expect(screen.getByText('D21CQCN01 - Công nghệ thông tin')).toBeInTheDocument();
     const rosterLinks = screen.getAllByRole('link', { name: /danh sách sv/i });
     expect(rosterLinks[0]).toHaveAttribute('href', '/teacher/classes/k1/roster');

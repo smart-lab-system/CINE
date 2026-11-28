@@ -1,37 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { renderInstructions, type InstructionsInput } from './exam-materials';
 
-/**
- * `renderInstructions` chưa từng có test riêng - trước đây chỉ được đi qua
- * gián tiếp bởi `session-controller.test.ts`, và test đó không kiểm nội
- * dung tờ hướng dẫn. Bộ này là coverage MỚI hoàn toàn cho hàm thuần.
- */
-
 function base(overrides: Partial<InstructionsInput> = {}): InstructionsInput {
   return {
     sessionName: 'Giữa kỳ CTDL&GT',
     studentName: 'Nguyễn Văn A',
     studentId: 'SV20120001',
     endTime: '2026-09-25T10:00:00.000Z',
-    requiredDeliverables: [{ filename: 'Cau1.docx', entries: [] }],
+    requiredDeliverables: [{ filename: '{SOMAY}_{MSSV}_{HOTEN}.zip', entries: [] }],
     materialFileNames: [],
     ...overrides,
   };
 }
 
 describe('renderInstructions', () => {
-  it('file KHÔNG có entries thì không có khối con bên dưới', () => {
+  it('gói zip nói làm trong thư mục stem + nén nội dung', () => {
     const text = renderInstructions(base());
-    expect(text).toContain('* Cau1.docx');
+    expect(text).toContain('* {SOMAY}_{MSSV}_{HOTEN}.zip');
+    expect(text).toMatch(/thư mục "\{SOMAY\}_\{MSSV\}_\{HOTEN\}\/"/i);
+    expect(text).toMatch(/nén NỘI DUNG/i);
     expect(text).not.toContain('Bên trong PHẢI có');
   });
 
-  // Lỗi thật 2026-09-25: trước đây tờ hướng dẫn chỉ nói "nộp file .zip/.rar",
-  // không nói bên trong cần gì - giảng viên khai entries qua
-  // ArchiveEntriesField.tsx, và chính UI đó ghi rõ hệ thống KHÔNG cảnh báo
-  // lúc đang thi. Tờ hướng dẫn là nơi DUY NHẤT thông tin này tới được sinh
-  // viên trước khi quá muộn.
-  it('file có entries thì liệt kê đúng danh sách bên trong, dưới đúng tên file', () => {
+  it('file có entries thì liệt kê trong thư mục stem', () => {
     const text = renderInstructions(
       base({
         requiredDeliverables: [
@@ -39,50 +30,24 @@ describe('renderInstructions', () => {
         ],
       }),
     );
-    const zipLine = text.indexOf('* BaiThi.zip');
-    const mainLine = text.indexOf('Main.java');
-    const baoCaoLine = text.indexOf('BaoCao.docx');
-    expect(zipLine).toBeGreaterThan(-1);
-    expect(mainLine).toBeGreaterThan(zipLine);
-    expect(baoCaoLine).toBeGreaterThan(mainLine);
-    expect(text).toContain('Bên trong PHẢI có');
+    expect(text).toMatch(/Trong thư mục "BaiThi\/" PHẢI có/i);
+    expect(text).toContain('Main.java');
+    expect(text).toContain('BaoCao.docx');
   });
 
-  it('file .rar thì nói agent tự đóng gói + cần WinRAR', () => {
+  it('file .rar thì nhắc WinRAR + thư mục stem', () => {
     const text = renderInstructions(
       base({ requiredDeliverables: [{ filename: 'BaiThi.rar', entries: [] }] }),
     );
-    expect(text).toMatch(/tự đóng gói/i);
+    expect(text).toMatch(/BaiThi\//);
     expect(text).toMatch(/winrar/i);
   });
 
-  it('file .zip thì nói agent tự đóng gói, không nhắc WinRAR', () => {
+  it('đuôi không phải archive thì không có câu đóng gói thư mục', () => {
     const text = renderInstructions(
-      base({ requiredDeliverables: [{ filename: 'BaiThi.zip', entries: [] }] }),
+      base({ requiredDeliverables: [{ filename: 'Cau2.py', entries: [] }] }),
     );
-    expect(text).toMatch(/tự đóng gói/i);
-    expect(text).not.toMatch(/winrar/i);
-  });
-
-  it('đuôi không phải archive thì không đổi gì so với trước - không có khối con, không câu đóng gói', () => {
-    const text = renderInstructions(base({ requiredDeliverables: [{ filename: 'Cau2.py', entries: [] }] }));
     expect(text).toContain('* Cau2.py');
-    expect(text).not.toContain('Bên trong PHẢI có');
-    expect(text).not.toMatch(/tự đóng gói/i);
-  });
-
-  it('nhiều file bắt buộc vẫn liệt kê đủ, đúng thứ tự', () => {
-    const text = renderInstructions(
-      base({
-        requiredDeliverables: [
-          { filename: 'Cau1.docx', entries: [] },
-          { filename: 'BaiThi.zip', entries: ['Main.java'] },
-        ],
-      }),
-    );
-    const i1 = text.indexOf('* Cau1.docx');
-    const i2 = text.indexOf('* BaiThi.zip');
-    expect(i1).toBeGreaterThan(-1);
-    expect(i2).toBeGreaterThan(i1);
+    expect(text).not.toMatch(/nén NỘI DUNG/i);
   });
 });

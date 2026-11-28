@@ -556,9 +556,17 @@ export class SessionController extends EventEmitter {
         }
       }
 
-      const created = createSubmissionFiles(workspaceDir, ack.requiredFiles);
+      // Ưu tiên requiredDeliverables (có entries) để tạo folder stem + file
+      // bên trong; fallback requiredFiles nếu ack cũ chỉ gửi tên.
+      const deliverableSpecs =
+        this.requiredDeliverables.length > 0
+          ? this.requiredDeliverables
+          : (Array.isArray(ack.requiredFiles) ? ack.requiredFiles : []).map(
+              (requiredFilename: string) => ({ requiredFilename }),
+            );
+      const created = createSubmissionFiles(workspaceDir, deliverableSpecs);
       this.patch({ requiredFiles: created.files });
-      this.log(`Đã tạo ${created.createdCount} file, sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
+      this.log(`Đã tạo ${created.createdCount} mục sẵn sàng làm bài. Thư mục: ${workspaceDir}`);
     }
     if (isFirstJoin) {
       // Fired before materials/instructions finish writing, not after -

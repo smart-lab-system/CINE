@@ -1,5 +1,6 @@
 import type { Rubric } from '@/lib/api/grading';
 import type { TeachingClass } from '@/lib/api/teaching';
+import { formatShortSemesterLabel } from '@/lib/master-data-defaults';
 import { resolveSemester } from '@/lib/resolve-semester';
 
 export interface QsRubricListRow {
@@ -9,7 +10,7 @@ export interface QsRubricListRow {
   courseLabel: string;
   approachCount: number;
   createdByName: string;
-  /** Học kỳ · năm học suy từ createdAt (catalog semester). */
+  /** Học kỳ rút gọn (vd. HK1 (2026-2027)) suy từ createdAt. */
   createdTermLabel: string;
 }
 
@@ -22,7 +23,7 @@ export interface SemesterForInfer {
   status?: string;
 }
 
-/** Nhãn học kỳ (đã gồm năm học trong tên catalog) suy từ mốc tạo. */
+/** Nhãn học kỳ rút gọn suy từ mốc tạo (catalog). */
 export function formatCreatedTermLabel(
   createdAt: string | undefined,
   updatedAt: string | undefined,
@@ -32,7 +33,7 @@ export function formatCreatedTermLabel(
   const hit = resolveSemester(createdAt, updatedAt ?? createdAt, semesters);
   if (!hit) return '-';
   const sem = semesters.find((s) => s.id === hit.id);
-  return sem?.name.trim() || '-';
+  return formatShortSemesterLabel(sem?.name);
 }
 
 export function activeQsRubrics(rubrics: Rubric[]): Rubric[] {

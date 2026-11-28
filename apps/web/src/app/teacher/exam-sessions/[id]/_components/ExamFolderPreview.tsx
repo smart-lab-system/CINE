@@ -42,7 +42,7 @@ export function ExamFolderPreview({
       className="rounded-lg border border-border bg-surface-2/40 px-4 py-3 font-mono text-base leading-relaxed text-foreground"
     >
       <p className="mb-2 font-sans text-small font-semibold text-foreground">
-        Thư mục bài thi (máy sinh viên)
+        Thư mục bài thi (máy sinh viên) - một gói nộp
       </p>
       <ul className="list-none space-y-0.5 pl-0">
         <li>
@@ -76,7 +76,7 @@ export function ExamFolderPreview({
               <li>
                 <span className="text-muted-foreground">└── </span>
                 <span className="font-sans text-muted-foreground">
-                  (trống) - chưa khai file phải nộp
+                  (trống) - chưa khai gói nộp
                 </span>
               </li>
             ) : (
@@ -86,6 +86,11 @@ export function ExamFolderPreview({
                 const sample = templated
                   ? previewFilenamePattern(file.pattern)
                   : null;
+                const lower = file.pattern.toLowerCase();
+                const stem =
+                  lower.endsWith('.zip') || lower.endsWith('.rar')
+                    ? file.pattern.slice(0, -4)
+                    : null;
                 return (
                   <li key={`${file.pattern}-${index}`} className="mb-1">
                     <span className="text-muted-foreground">
@@ -105,8 +110,13 @@ export function ExamFolderPreview({
                       {file.deliverableType === 'code_project' && file.language ? (
                         <li>· ngôn ngữ: {file.language}</li>
                       ) : null}
+                      {stem ? (
+                        <li>
+                          · thư mục làm bài: {stem}/ (lúc thu nén nội dung → gói)
+                        </li>
+                      ) : null}
                       {file.entries.length > 0 ? (
-                        <li>· trong nén: {file.entries.join(', ')}</li>
+                        <li>· trong thư mục / trong nén: {file.entries.join(', ')}</li>
                       ) : null}
                     </ul>
                   </li>

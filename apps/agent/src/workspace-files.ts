@@ -106,27 +106,6 @@ export function isErrnoException(error: unknown): error is NodeJS.ErrnoException
 }
 
 /**
- * 22 byte "End Of Central Directory" của một file ZIP 0 mục - file nén RỖNG
- * nhưng HỢP LỆ, không phải file 0 byte.
- *
- * Lỗi thật 2026-09-25: bản trước tạo MỌI file bắt buộc - kể cả `.zip`/`.rar`
- * - thành file 0 byte. Với `.docx`/`.py` thì rỗng là điểm bắt đầu hợp lý;
- * với file nén thì 0 byte KHÔNG PHẢI một file nén rỗng hợp lệ ở bất kỳ định
- * dạng nào - Explorer không mở duyệt được, không kéo-thả nội dung vào được.
- * Sinh viên có một "file nén sẵn có" nhưng nó đã hỏng từ lúc phòng thi mở ra
- * - đúng khớp "The archive is either in an unknown format or damaged" khi
- * mở bằng WinRAR.
- *
- * `archive-reader.ts` (phía backend) đã nhận đúng byte này là magic hợp lệ
- * (`// end of central directory (archive rỗng)`) - không phải hằng số tự
- * bịa, test đối chiếu byte-for-byte với JSZip thật.
- */
-const EMPTY_ZIP_EOCD = Buffer.from([
-  0x50, 0x4b, 0x05, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-]);
-
-/**
  * Suy ra "đây là file nén" từ ĐUÔI TÊN, không phải cờ riêng - cùng cách
  * `apps/web/.../schema.ts` và `create-exam-session.dto.ts` (backend) đã
  * làm, và đúng nguyên tắc `filename-template.ts` đã phát biểu: một cờ là
@@ -134,16 +113,29 @@ const EMPTY_ZIP_EOCD = Buffer.from([
  * dùng được ở đây - nó chỉ có `'document' | 'code_project' | 'image'`,
  * không có giá trị nào cho "file nén" cả.
  *
- * Exported vì `exam-materials.ts` cần đúng phép suy luận này để quyết định
- * có chèn câu giải thích ".rar không tạo trước được" vào tờ hướng dẫn hay
- * không - khai lại hàm này ở đó sẽ tái tạo đúng thứ nguyên tắc trên đang
- * cấm: hai nơi có thể lệch nhau nếu danh sách đuôi file mở rộng sau này.
+ * Exported vì `exam-materials.ts` / pack cần đúng phép suy luận này.
  */
 export function archiveKindOf(filename: string): 'zip' | 'rar' | null {
   const lower = filename.toLowerCase();
   if (lower.endsWith('.zip')) return 'zip';
   if (lower.endsWith('.rar')) return 'rar';
   return null;
+}
+
+/**
+ * Tên thư mục làm bài trên đĩa = stem gói nộp (bỏ `.zip`/`.rar`).
+ * Spec 2026-11-28-archive-work-folder-pack-design.md.
+ */
+export function archiveStemOf(filename: string): string | null {
+  const kind = archiveKindOf(filename);
+  if (!kind) return null;
+  // kind là 'zip'|'rar' (3 ký tự); đuôi thật là '.zip'|'.rar' (4).
+  return filename.slice(0, -(kind.length + 1));
+}
+
+export interface WorkspaceDeliverableSpec {
+  requiredFilename: string;
+  entries?: string[];
 }
 
 export interface CreateSubmissionFilesResult {
@@ -163,77 +155,110 @@ export interface CreateSubmissionFilesResult {
   files: { filename: string; created: boolean; note?: string }[];
 }
 
+function writeEmptyFileWx(targetPath: string): 'created' | 'exists' | 'failed' {
+  try {
+    fs.writeFileSync(targetPath, '', { flag: 'wx' });
+    return 'created';
+  } catch (error) {
+    if (isErrnoException(error) && error.code === 'EEXIST') {
+      return 'exists';
+    }
+    return 'failed';
+  }
+}
+
 /**
- * Creates `workspaceDir` and, for each entry in `requiredFiles`, a starting
- * file inside it - after independently re-validating the filename. Invalid
- * entries are skipped (reported via `files[].created === false`), never
- * written, and never throw.
+ * Chuẩn bị workspace lúc join.
  *
- * "Starting file" khác nhau theo đuôi tên, xem `archiveKindOf`:
- * - `.zip`  → `EMPTY_ZIP_EOCD` (file nén rỗng HỢP LỆ).
- * - `.rar`  → KHÔNG ghi gì cả - không có cách hợp pháp tạo RAR rỗng hợp lệ
- *   mà không có bộ mã hoá độc quyền của WinRAR (`node-unrar-js`, dùng ở
- *   backend, CHỈ ĐỌC). Vẫn kiểm file đã tồn tại chưa - sinh viên có thể đã
- *   tự nén thật trước một lần kết nối lại, và lúc đó phải báo `created:
- *   true`, không phải ghi đè hay báo sai.
- * - đuôi khác → `''`, y nguyên hành vi cũ.
+ * - Deliverable archive (`.zip`/`.rar`): tạo thư mục stem (tên gói bỏ đuôi);
+ *   tạo file entries rỗng bên trong nếu GV khai. Không tạo file gói ở root
+ *   (gói chỉ xuất hiện lúc pack). Spec 2026-11-28-archive-work-folder-pack.
+ * - File lẻ (phiên cũ): file rỗng như trước, `wx` không đè bài đang làm.
  *
- * Uses the `wx` flag (`O_CREAT | O_EXCL`) rather than the default `w`:
- * socket.io reconnects (a network blip, not a fresh exam attempt) re-emit
- * `agent:join` and get a fresh `agent:join:ack` - this function then runs
- * again for the SAME files. A plain write would silently truncate whatever
- * the student had already written into them. `wx` refuses to write if the
- * path already exists (`EEXIST`), so an existing file - the student's own
- * in-progress work, or a symlink someone planted at that path - is left
- * completely untouched and still counted as "created".
+ * `deliverables` nhận object `{ requiredFilename, entries? }` hoặc chuỗi
+ * tên file (tương thích test/cũ - hiểu là không có entries).
  */
 export function createSubmissionFiles(
   workspaceDir: string,
-  requiredFiles: unknown,
+  deliverables: unknown,
 ): CreateSubmissionFilesResult {
   fs.mkdirSync(workspaceDir, { recursive: true });
 
-  if (!Array.isArray(requiredFiles)) {
+  if (!Array.isArray(deliverables)) {
     return { createdCount: 0, files: [] };
   }
 
   const files: { filename: string; created: boolean; note?: string }[] = [];
   let createdCount = 0;
-  for (const filename of requiredFiles) {
+
+  for (const item of deliverables) {
+    const spec: WorkspaceDeliverableSpec =
+      typeof item === 'string'
+        ? { requiredFilename: item }
+        : item && typeof item === 'object' && 'requiredFilename' in item
+          ? {
+              requiredFilename: String(
+                (item as WorkspaceDeliverableSpec).requiredFilename ?? '',
+              ),
+              entries: Array.isArray((item as WorkspaceDeliverableSpec).entries)
+                ? (item as WorkspaceDeliverableSpec).entries
+                : undefined,
+            }
+          : { requiredFilename: '' };
+
+    const filename = spec.requiredFilename;
+    const stem = archiveStemOf(filename);
+
+    if (stem !== null) {
+      const stemCheck = validateFilename(workspaceDir, stem);
+      if (!stemCheck.ok) {
+        files.push({ filename, created: false });
+        continue;
+      }
+
+      try {
+        fs.mkdirSync(stemCheck.resolvedPath!, { recursive: true });
+      } catch {
+        files.push({
+          filename,
+          created: false,
+          note: `Không tạo được thư mục làm bài "${stem}".`,
+        });
+        continue;
+      }
+
+      for (const entry of spec.entries ?? []) {
+        const entryCheck = validateFilename(stemCheck.resolvedPath!, entry);
+        if (!entryCheck.ok) {
+          continue;
+        }
+        writeEmptyFileWx(entryCheck.resolvedPath!);
+      }
+
+      createdCount++;
+      files.push({
+        filename,
+        created: true,
+        note: `Làm bài trong thư mục "${stem}" - lúc nộp agent nén nội dung thư mục này.`,
+      });
+      continue;
+    }
+
     const result = validateFilename(workspaceDir, filename);
     if (!result.ok) {
-      // filename is not necessarily a string here - String() covers that.
       files.push({ filename: String(filename), created: false });
       continue;
     }
 
-    if (archiveKindOf(filename) === 'rar') {
-      const already = fs.existsSync(result.resolvedPath!);
-      files.push({
-        filename,
-        created: already,
-        note: already
-          ? undefined
-          : 'Hệ thống không tạo trước được - tự nén bằng WinRAR, đặt đúng tên này.',
-      });
-      if (already) createdCount++;
+    const write = writeEmptyFileWx(result.resolvedPath!);
+    if (write === 'failed') {
+      files.push({ filename, created: false });
       continue;
     }
-
-    const content = archiveKindOf(filename) === 'zip' ? EMPTY_ZIP_EOCD : '';
-    try {
-      fs.writeFileSync(result.resolvedPath!, content, { flag: 'wx' });
-      createdCount++;
-      files.push({ filename, created: true });
-    } catch (error) {
-      if (isErrnoException(error) && error.code === 'EEXIST') {
-        createdCount++;
-        files.push({ filename, created: true });
-        continue;
-      }
-      files.push({ filename, created: false });
-    }
+    createdCount++;
+    files.push({ filename, created: true });
   }
+
   return { createdCount, files };
 }
 

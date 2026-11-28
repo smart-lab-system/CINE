@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest';
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'e1', versionId: 'v1' }),
   usePathname: () => '/admin/ide-utilities/e1/versions/v1/browse',
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('@/components/jplag/jplag-comparison-viewer', () => ({ JplagComparisonViewer: () => null }));
 

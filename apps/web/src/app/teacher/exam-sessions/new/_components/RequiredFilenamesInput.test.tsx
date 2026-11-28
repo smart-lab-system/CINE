@@ -5,19 +5,22 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { RequiredFilenamesInput } from './RequiredFilenamesInput';
 import {
+  DEFAULT_ARCHIVE_DELIVERABLE,
   replaceRequiredDeliverablesSchema,
   type ReplaceRequiredDeliverablesFormValues,
 } from '../schema';
 
 /**
- * Cảnh báo WinRAR trên form khai deliverable `.rar`: agent tự đóng gói lúc
- * thu bài nên máy lab vẫn cần Rar.exe - GV phải biết lúc khai, không phải
- * sau khi mở phiên.
+ * Form một gói nộp: cảnh báo WinRAR khi `.rar`; luôn hiện kiểm file bên trong.
  */
-function Harness() {
+function Harness({
+  initial = DEFAULT_ARCHIVE_DELIVERABLE,
+}: {
+  initial?: string;
+}) {
   const form = useForm<ReplaceRequiredDeliverablesFormValues>({
     resolver: zodResolver(replaceRequiredDeliverablesSchema),
-    defaultValues: { requiredFilenames: [{ value: '' }] },
+    defaultValues: { requiredFilenames: [{ value: initial, deliverableType: 'document' }] },
   });
   return (
     <FormProvider {...form}>
@@ -27,20 +30,23 @@ function Harness() {
 }
 
 function typeFilename(value: string) {
-  // `getByLabelText(/file phải nộp số 1/i)` also matches the row's delete
-  // button (`aria-label="Xoá file phải nộp số 1"`, a substring match) - the
-  // placeholder is unique to the input itself.
-  fireEvent.change(screen.getByPlaceholderText(/bai_lam\.docx/i), { target: { value } });
+  fireEvent.change(screen.getByPlaceholderText(/SOMAY.*MSSV.*HOTEN.*\.zip/i), {
+    target: { value },
+  });
 }
 
-describe('RequiredFilenamesInput - cảnh báo .rar cần WinRAR', () => {
-  it('tên file thường thì không có cảnh báo WinRAR', () => {
+describe('RequiredFilenamesInput - một gói + WinRAR', () => {
+  it('không có nút Thêm file', () => {
     render(<Harness />);
-    typeFilename('bai_lam.docx');
-    expect(screen.queryByText(/winrar/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /thêm file$/i })).not.toBeInTheDocument();
   });
 
-  it('tên file .zip thì không có cảnh báo - .zip máy nào cũng nén được', () => {
+  it('luôn hiện Kiểm file bên trong', () => {
+    render(<Harness />);
+    expect(screen.getByText(/kiểm file bên trong/i)).toBeInTheDocument();
+  });
+
+  it('tên file .zip thì không có cảnh báo WinRAR', () => {
     render(<Harness />);
     typeFilename('BaiThi_{MSSV}.zip');
     expect(screen.queryByText(/winrar/i)).not.toBeInTheDocument();
@@ -58,7 +64,7 @@ describe('RequiredFilenamesInput - cảnh báo .rar cần WinRAR', () => {
     expect(screen.getByText(/winrar/i)).toBeInTheDocument();
   });
 
-  it('sửa từ .rar sang tên khác thì cảnh báo biến mất', () => {
+  it('sửa từ .rar sang .zip thì cảnh báo biến mất', () => {
     render(<Harness />);
     typeFilename('BaiThi.rar');
     expect(screen.getByText(/winrar/i)).toBeInTheDocument();
@@ -68,65 +74,48 @@ describe('RequiredFilenamesInput - cảnh báo .rar cần WinRAR', () => {
   });
 });
 
-describe('RequiredFilenamesInput - deliverableType/language (3d2, khai qua form)', () => {
+describe('RequiredFilenamesInput - deliverableType/language', () => {
   it('mặc định là "Tài liệu", không hiện ô chọn ngôn ngữ', () => {
     render(<Harness />);
-    expect(screen.getByLabelText(/loại bài nộp số 1/i)).toHaveValue('document');
-    expect(screen.queryByLabelText(/ngôn ngữ số 1/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/loại bài nộp/i)).toHaveValue('document');
+    expect(screen.queryByLabelText(/loại mã nguồn/i)).not.toBeInTheDocument();
   });
 
   it('chọn "Mã nguồn" thì hiện thêm ô chọn loại', () => {
     render(<Harness />);
-    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+    fireEvent.change(screen.getByLabelText(/loại bài nộp/i), {
       target: { value: 'code_project' },
     });
-    expect(screen.getByLabelText(/loại mã nguồn số 1/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/loại mã nguồn/i)).toBeInTheDocument();
   });
 
   it('đổi lại về "Tài liệu" thì ô loại mã nguồn biến mất', () => {
     render(<Harness />);
-    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+    fireEvent.change(screen.getByLabelText(/loại bài nộp/i), {
       target: { value: 'code_project' },
     });
-    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+    fireEvent.change(screen.getByLabelText(/loại bài nộp/i), {
       target: { value: 'document' },
     });
-    expect(screen.queryByLabelText(/loại mã nguồn số 1/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/loại mã nguồn/i)).not.toBeInTheDocument();
   });
 
   it('có Python, C++, C, Java, Jupyter và JSON', () => {
     render(<Harness />);
-    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+    fireEvent.change(screen.getByLabelText(/loại bài nộp/i), {
       target: { value: 'code_project' },
     });
-    const options = screen.getByLabelText(/loại mã nguồn số 1/i).querySelectorAll('option');
+    const options = screen.getByLabelText(/loại mã nguồn/i).querySelectorAll('option');
     const values = Array.from(options).map((o) => (o as HTMLOptionElement).value);
     expect(values).toEqual(['', 'python', 'cpp', 'c', 'java', 'ipynb', 'json']);
   });
 
-  it('chọn loại thì đổi đuôi file, giữ nguyên file nén', () => {
-    render(<Harness />);
-    typeFilename('bai_lam.docx');
-    fireEvent.change(screen.getByLabelText(/loại bài nộp số 1/i), {
+  it('chọn loại mã nguồn không đổi đuôi gói .zip', () => {
+    render(<Harness initial="BaiThi.zip" />);
+    fireEvent.change(screen.getByLabelText(/loại bài nộp/i), {
       target: { value: 'code_project' },
     });
-    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'python' } });
-    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.py');
-
-    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'ipynb' } });
-    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.ipynb');
-
-    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'c' } });
-    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.c');
-
-    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'java' } });
-    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.java');
-
-    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'json' } });
-    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('bai_lam.json');
-
-    typeFilename('BaiThi.zip');
-    fireEvent.change(screen.getByLabelText(/loại mã nguồn số 1/i), { target: { value: 'cpp' } });
-    expect(screen.getByPlaceholderText(/bai_lam\.docx/i)).toHaveValue('BaiThi.zip');
+    fireEvent.change(screen.getByLabelText(/loại mã nguồn/i), { target: { value: 'cpp' } });
+    expect(screen.getByPlaceholderText(/SOMAY.*MSSV.*HOTEN.*\.zip/i)).toHaveValue('BaiThi.zip');
   });
 });

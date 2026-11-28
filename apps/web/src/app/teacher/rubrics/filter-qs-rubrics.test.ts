@@ -164,10 +164,10 @@ describe('formatCreatedTermLabel', () => {
     },
   ];
 
-  it('chỉ lấy tên học kỳ catalog, không nối thêm năm học', () => {
+  it('rút gọn tên học kỳ catalog cho cột bảng', () => {
     expect(
       formatCreatedTermLabel('2026-09-15T08:00:00.000Z', undefined, semesters),
-    ).toBe('Học kỳ 1 năm học 2026 - 2027');
+    ).toBe('HK1 (2026-2027)');
   });
 
   it('trả - khi thiếu dữ liệu', () => {
@@ -211,7 +211,7 @@ describe('buildQsRubricRows', () => {
         courseLabel: 'CTDL',
         approachCount: 2,
         createdByName: 'Nguyễn A',
-        createdTermLabel: 'Học kỳ 1 năm học 2026 - 2027',
+        createdTermLabel: 'HK1 (2026-2027)',
       },
     ]);
   });

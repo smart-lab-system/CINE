@@ -14,7 +14,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { Socket } from 'socket.io-client';
-import { archiveKindOf } from './workspace-files';
+import { archiveKindOf, archiveStemOf } from './workspace-files';
 
 /** Where materials land, inside the student's own workspace. */
 export const MATERIALS_DIRNAME = 'de-thi';
@@ -192,30 +192,31 @@ export function renderInstructions(input: InstructionsInput): string {
     `Sinh viên : ${input.studentName ?? '(chưa xác định)'} - MSSV ${input.studentId}`,
     `Hết giờ   : ${endText}`,
     '',
-    '-- BÀI LÀM PHẢI CÓ ĐÚNG NHỮNG FILE SAU -------------------',
+    '-- GÓI BÀI NỘP (một file nén) ----------------------------',
     '',
   ];
 
   for (const { filename, entries } of input.requiredDeliverables) {
     lines.push(`  * ${filename}`);
 
-    // Archive: agent tự đóng gói workspace lúc nộp (ignore node_modules/…).
-    // `.rar` cần WinRAR trên máy lab; không bắt SV tự nén tay.
-    if (archiveKindOf(filename) === 'zip') {
+    const kind = archiveKindOf(filename);
+    const stem = archiveStemOf(filename);
+    if (stem && (kind === 'zip' || kind === 'rar')) {
       lines.push(
-        '      - Lúc nộp bài, agent tự đóng gói thư mục bài làm vào file này',
-        '        (bỏ node_modules, target, …). Cứ làm bài trong thư mục này.',
+        `      - Làm bài trong thư mục "${stem}/" (cùng tên gói, bỏ đuôi).`,
+        '      - Lúc nộp, agent nén NỘI DUNG thư mục đó thành gói trên',
+        '        (bỏ node_modules, target, …) - trong file nén không còn lớp thư mục bọc.',
       );
-    } else if (archiveKindOf(filename) === 'rar') {
-      lines.push(
-        '      - Lúc nộp bài, agent tự đóng gói thư mục bài làm vào file này',
-        '        (bỏ node_modules, target, …). Máy thi cần có WinRAR.',
-        '      - Hệ thống không tạo sẵn file .rar rỗng lúc vào phòng - không cần',
-        '        tự nén tay; agent sẽ tạo lúc nộp nếu WinRAR có sẵn.',
-      );
-    }
-
-    if (entries.length > 0) {
+      if (kind === 'rar') {
+        lines.push('      - Máy thi cần có WinRAR (Rar.exe) để đóng gói .rar.');
+      }
+      if (entries.length > 0) {
+        lines.push(`      - Trong thư mục "${stem}/" PHẢI có (tên file):`);
+        for (const entry of entries) {
+          lines.push(`          . ${entry}`);
+        }
+      }
+    } else if (entries.length > 0) {
       lines.push('      - Bên trong PHẢI có (tên file, không cần đúng thư mục):');
       for (const entry of entries) {
         lines.push(`          . ${entry}`);
@@ -225,8 +226,7 @@ export function renderInstructions(input: InstructionsInput): string {
 
   lines.push(
     '',
-    'Tên file phải giữ nguyên. File đặt tên khác sẽ KHÔNG được thu.',
-    'Lưu bài ngay trong thư mục này (không lưu ra Desktop hay chỗ khác).',
+    'Tên gói / thư mục phải giữ nguyên. Làm bài trong thư mục stem, không lưu ra Desktop.',
     '',
   );
 

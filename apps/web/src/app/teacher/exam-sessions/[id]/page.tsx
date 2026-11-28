@@ -36,7 +36,11 @@ import { SessionFolderStep } from './_components/SessionFolderStep';
 import { SessionExamRubricStep } from './_components/SessionExamRubricStep';
 import { SessionReviewStep } from './_components/SessionReviewStep';
 import { SessionExamRosterCard } from './_components/SessionExamRosterCard';
-import { toDeliverableFormValues } from './_components/RequiredDeliverablesEditor';
+import {
+  legacyExtraDeliverableNames,
+  toDeliverableFormValues,
+  toServerFolderBaseline,
+} from './_components/RequiredDeliverablesEditor';
 import { reviewChecklist, saveDraftPlan, type SaveDraftPlan } from './_components/setup-commit';
 import { finishPlan } from './_components/setup-commit';
 import { parseStep, stepIndex, SETUP_STEPS } from './_components/setup-steps';
@@ -121,7 +125,7 @@ function SetupHub({ sessionId }: { sessionId: string }) {
     if (!session) return null;
     return {
       info: infoDraftFromSession(session),
-      folder: toDeliverableFormValues(session.requiredDeliverables),
+      folder: toServerFolderBaseline(session.requiredDeliverables),
       rubricId: session.rubricId,
     };
   }, [session]);
@@ -260,7 +264,7 @@ function SetupBody({
   const server = useMemo<SetupServerBaseline>(
     () => ({
       info: infoDraftFromSession(session),
-      folder: toDeliverableFormValues(session.requiredDeliverables),
+      folder: toServerFolderBaseline(session.requiredDeliverables),
       rubricId: session.rubricId,
     }),
     [session],
@@ -430,7 +434,10 @@ function SetupBody({
         <SessionFolderStep
           folderEditable={mutable}
           materialFilenames={materialFilenames}
-          initialFolder={setup.draft?.folder ?? server.folder}
+          initialFolder={
+            setup.draft?.folder ?? toDeliverableFormValues(session.requiredDeliverables)
+          }
+          legacyExtraFilenames={legacyExtraDeliverableNames(session.requiredDeliverables)}
           previewFiles={session.requiredDeliverables.map((item) => ({
             pattern: item.requiredFilename,
             deliverableType: item.deliverableType,

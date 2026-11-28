@@ -478,18 +478,36 @@ export interface ViolationVersion {
   incidents: ViolationIncident[];
 }
 
+export type ViolationExtractStatus =
+  | 'none'
+  | 'pending'
+  | 'extracting'
+  | 'ready'
+  | 'failed';
+
 export interface ViolationExtension {
   extensionId: string;
   displayName: string | null;
   publisher: string | null;
+  /** ISO - catalog lastReleasedAt or publishedAt when known. */
+  publishedAt?: string | null;
   inCatalog: boolean;
   catalogExtensionPk: string | null;
+  primaryVersion?: string | null;
+  primaryVersionId?: string | null;
+  extractStatus?: ViolationExtractStatus;
+  jplagText?: number | null;
+  jplagStatus?: IdeExtensionJplagRunStatus | null;
+  jplagRunId?: string | null;
   versionCount: number;
   incidentCount: number;
   studentCount: number;
   versions: ViolationVersion[];
 }
 
-export function listViolations() {
-  return ideFetch<ViolationExtension[]>('/ide-extensions/violations');
+export function listViolations(examSessionId?: string) {
+  const q = examSessionId
+    ? `?examSessionId=${encodeURIComponent(examSessionId)}`
+    : '';
+  return ideFetch<ViolationExtension[]>(`/ide-extensions/violations${q}`);
 }

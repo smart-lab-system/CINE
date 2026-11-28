@@ -8,18 +8,23 @@ describe('ExamFolderPreview', () => {
     render(
       <ExamFolderPreview
         materialFilenames={[]}
-        requiredFiles={[{ pattern: 'bai.docx', deliverableType: 'document', entries: [] }]}
+        requiredFiles={[
+          { pattern: '{SOMAY}_{MSSV}_{HOTEN}.zip', deliverableType: 'document', entries: [] },
+        ]}
       />,
     );
     expect(screen.getByText(/chưa upload đề\/tài liệu/i)).toBeInTheDocument();
-    expect(screen.getByText('bai.docx')).toBeInTheDocument();
+    expect(screen.getByText('{SOMAY}_{MSSV}_{HOTEN}.zip')).toBeInTheDocument();
+    expect(screen.getByText(/một gói nộp/i)).toBeInTheDocument();
   });
 
   it('có material → liệt kê tên', () => {
     render(
       <ExamFolderPreview
         materialFilenames={['De_thi.pdf', 'Huong_dan.docx']}
-        requiredFiles={[{ pattern: 'bai.docx', deliverableType: 'document', entries: [] }]}
+        requiredFiles={[
+          { pattern: '{SOMAY}_{MSSV}_{HOTEN}.zip', deliverableType: 'document', entries: [] },
+        ]}
       />,
     );
     expect(screen.getByText('De_thi.pdf')).toBeInTheDocument();
@@ -27,21 +32,21 @@ describe('ExamFolderPreview', () => {
     expect(screen.queryByText(/chưa upload đề/i)).not.toBeInTheDocument();
   });
 
-  it('pattern có {MSSV} → hiện → + sample', () => {
+  it('pattern có token → hiện → + sample', () => {
     render(
       <ExamFolderPreview
         materialFilenames={[]}
         requiredFiles={[
           {
-            pattern: '{MSSV}_BaiLam.docx',
+            pattern: '{SOMAY}_{MSSV}_{HOTEN}.zip',
             deliverableType: 'document',
             entries: [],
           },
         ]}
       />,
     );
-    expect(screen.getByText('{MSSV}_BaiLam.docx')).toBeInTheDocument();
-    expect(screen.getByText('SV20120001_BaiLam.docx')).toBeInTheDocument();
+    expect(screen.getByText('{SOMAY}_{MSSV}_{HOTEN}.zip')).toBeInTheDocument();
+    expect(screen.getByText('P01_SV20120001_NguyenVanAn.zip')).toBeInTheDocument();
   });
 
   it('entries → dòng trong nén', () => {
@@ -58,7 +63,8 @@ describe('ExamFolderPreview', () => {
         ]}
       />,
     );
-    expect(screen.getByText(/trong nén: main\.py, readme\.txt/i)).toBeInTheDocument();
+    expect(screen.getByText(/trong thư mục \/ trong nén: main\.py, readme\.txt/i)).toBeInTheDocument();
+    expect(screen.getByText(/thư mục làm bài: Bai\//i)).toBeInTheDocument();
     expect(screen.getByText(/ngôn ngữ: python/i)).toBeInTheDocument();
     expect(screen.getByText(/loại: Mã nguồn/i)).toBeInTheDocument();
   });
@@ -70,7 +76,7 @@ describe('ExamFolderPreview', () => {
         requiredFiles={[{ pattern: '   ', deliverableType: 'document', entries: [] }]}
       />,
     );
-    expect(screen.getByText(/chưa khai file phải nộp/i)).toBeInTheDocument();
+    expect(screen.getByText(/chưa khai gói nộp/i)).toBeInTheDocument();
   });
 
   it('region có aria-label preview', () => {

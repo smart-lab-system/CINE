@@ -162,7 +162,7 @@ export class JplagExamService {
       }
     }
 
-    const language = await this.resolveSessionLanguage(opts.examSessionId);
+    const language = await this.resolveJplagLanguage(opts.examSessionId);
     const run = await this.runs.save(
       this.runs.create({
         examSessionId: opts.examSessionId,
@@ -221,10 +221,10 @@ export class JplagExamService {
       }
     }
 
-    const deliverable = await this.deliverables.findOne({
-      where: { id: opts.requiredDeliverableId },
-    });
-    const language = mapDeclaredToJplag(deliverable?.language ?? null);
+    const language = await this.resolveJplagLanguage(
+      opts.examSessionId,
+      opts.requiredDeliverableId,
+    );
 
     const run = await this.runs.save(
       this.runs.create({
@@ -251,6 +251,47 @@ export class JplagExamService {
     return run;
   }
 
+  /**
+   * After VSIX extract becomes ready: bind versionId onto waiting vs_model runs
+   * and re-enqueue so JPlag does not stay failed from the scans/batch race.
+   */
+  async onVersionExtractReady(versionId: string): Promise<void> {
+    const ver = await this.versions.findOne({
+      where: { id: versionId },
+      relations: { extension: true },
+    });
+    if (!ver?.extension) return;
+
+    const identifier = ver.extension.identifier;
+    const version = ver.version;
+
+    const candidates = await this.runs.find({
+      where: [
+        { versionId, kind: 'vs_model', status: In(['pending', 'failed']) },
+        {
+          extensionIdentifier: identifier,
+          extensionVersion: version,
+          kind: 'vs_model',
+          status: In(['pending', 'failed']),
+        },
+      ],
+    });
+
+    for (const run of candidates) {
+      if (run.status === 'failed' && !isRetryableVsModelError(run.error)) {
+        continue;
+      }
+      if (!run.versionId) {
+        run.versionId = versionId;
+        run.extensionPk = ver.extensionPk;
+      }
+      run.status = 'pending';
+      run.error = null;
+      await this.runs.save(run);
+      await this.enqueueVsModelJob(run.id, 0);
+    }
+  }
+
   async processVsModel(runId: string): Promise<void> {
     const run = await this.runs.findOne({ where: { id: runId } });
     if (!run || run.kind !== 'vs_model') return;
@@ -261,11 +302,39 @@ export class JplagExamService {
     await this.runs.save(run);
 
     try {
-      if (!run.versionId) {
-        throw new BadRequestException(
-          `Chưa có bản VSIX trong catalog cho ${run.extensionIdentifier}@${run.extensionVersion}.`,
+      if (!run.versionId && run.extensionVersion) {
+        const resolved = await this.resolveCatalogVersion(
+          run.extensionIdentifier,
+          run.extensionVersion,
         );
+        if (resolved) {
+          run.versionId = resolved.versionId;
+          run.extensionPk = resolved.extensionPk;
+          await this.runs.save(run);
+        }
       }
+
+      if (!run.versionId) {
+        await this.deferVsModel(
+          run,
+          `Chờ catalog/VSIX cho ${run.extensionIdentifier}@${run.extensionVersion}.`,
+        );
+        return;
+      }
+
+      const verRow = await this.versions.findOne({ where: { id: run.versionId } });
+      if (!verRow) {
+        await this.deferVsModel(run, 'Chờ catalog/VSIX…');
+        return;
+      }
+      if (verRow.extractStatus === 'failed') {
+        throw new BadRequestException('Giải nén VSIX thất bại.');
+      }
+      if (verRow.extractStatus !== 'ready') {
+        await this.deferVsModel(run, 'Chờ giải nén VSIX…');
+        return;
+      }
+
       const language = requireJplagLanguage(run.language);
       const normalized = await this.ideExtensions.getNormalizedSources(run.versionId);
       if (normalized.mode === 'none' || normalized.items.length === 0) {
@@ -294,6 +363,37 @@ export class JplagExamService {
       await this.runs.save(run);
       this.logger.warn(`vs_model run ${runId} failed: ${run.error}`);
     }
+  }
+
+  /** Leave run pending and re-queue after a short delay (catalog/extract race). */
+  private async deferVsModel(run: IdeExtensionJplagRunEntity, reason: string): Promise<void> {
+    const ageMs = Date.now() - new Date(run.createdAt).getTime();
+    const maxWaitMs = 30 * 60 * 1000;
+    if (ageMs > maxWaitMs) {
+      run.status = 'failed';
+      run.error = `${reason} (hết thời gian chờ pipeline).`.slice(0, 2000);
+      await this.runs.save(run);
+      this.logger.warn(`vs_model run ${run.id} gave up waiting: ${run.error}`);
+      return;
+    }
+
+    run.status = 'pending';
+    run.error = reason.slice(0, 2000);
+    await this.runs.save(run);
+    await this.enqueueVsModelJob(run.id, 10_000);
+  }
+
+  private async enqueueVsModelJob(runId: string, delayMs: number): Promise<void> {
+    await this.jplagQueue.add(
+      'vs-model',
+      { runId },
+      {
+        ...IDE_EXTENSION_JPLAG_JOB_OPTIONS,
+        delay: delayMs > 0 ? delayMs : undefined,
+        // Unique jobId so re-enqueue after extract ready is not swallowed.
+        jobId: `jplag-vs-model-${runId}-${Date.now()}`,
+      },
+    );
   }
 
   async processVsStudent(runId: string): Promise<void> {
@@ -516,13 +616,46 @@ export class JplagExamService {
     return { extensionPk: ext.id, versionId: ver.id };
   }
 
-  private async resolveSessionLanguage(examSessionId: string): Promise<string | null> {
-    const rows = await this.deliverables.find({
+  /**
+   * JPlag language: ưu tiên đề (`exam_problem`), thiếu thì fallback gói nộp
+   * `code_project`. Không đổi đường chấm / sandbox.
+   */
+  private async resolveJplagLanguage(
+    examSessionId: string,
+    requiredDeliverableId?: string | null,
+  ): Promise<string | null> {
+    const problems: Array<{
+      ordinal: number;
+      language: string | null;
+      required_deliverable_id: string | null;
+    }> = await this.runs.manager.query(
+      `
+      SELECT ordinal, language, required_deliverable_id
+        FROM examcollect.exam_problem
+       WHERE exam_session_id = $1
+       ORDER BY ordinal ASC
+      `,
+      [examSessionId],
+    );
+
+    const deliverableRows = await this.deliverables.find({
       where: { examSessionId },
       order: { createdAt: 'ASC' },
     });
-    const code = rows.find((d) => d.deliverableType === 'code_project' && d.language);
-    return mapDeclaredToJplag(code?.language ?? null);
+
+    return pickJplagLanguage({
+      problems: problems.map((p) => ({
+        ordinal: p.ordinal,
+        language: p.language,
+        requiredDeliverableId: p.required_deliverable_id,
+      })),
+      deliverables: deliverableRows.map((d) => ({
+        id: d.id,
+        deliverableType: d.deliverableType,
+        language: d.language,
+      })),
+      requiredDeliverableId: requiredDeliverableId ?? null,
+    });
   }
 
   private async findBlockedExtensionsForStudent(
@@ -599,11 +732,82 @@ export function mapDeclaredToJplag(
   return null;
 }
 
+export type JplagLanguageProblemHint = {
+  ordinal: number;
+  language: string | null;
+  requiredDeliverableId: string | null;
+};
+
+export type JplagLanguageDeliverableHint = {
+  id: string;
+  deliverableType: string;
+  language: string | null;
+};
+
+/**
+ * Ưu tiên ngôn ngữ đề (`exam_problem`), thiếu thì fallback gói nộp code_project.
+ * Pure - dùng cho unit test và `resolveJplagLanguage`.
+ */
+export function pickJplagLanguage(input: {
+  problems: JplagLanguageProblemHint[];
+  deliverables: JplagLanguageDeliverableHint[];
+  requiredDeliverableId?: string | null;
+}): JplagDemoLanguage | null {
+  const fromExam = languageFromExamProblems(
+    input.problems,
+    input.requiredDeliverableId ?? null,
+  );
+  if (fromExam) return fromExam;
+
+  const delivId = input.requiredDeliverableId ?? null;
+  if (delivId) {
+    const matched = input.deliverables.find((d) => d.id === delivId);
+    const mapped = mapDeclaredToJplag(matched?.language ?? null);
+    if (mapped) return mapped;
+  }
+
+  const code = input.deliverables.find(
+    (d) => d.deliverableType === 'code_project' && d.language,
+  );
+  return mapDeclaredToJplag(code?.language ?? null);
+}
+
+function languageFromExamProblems(
+  problems: JplagLanguageProblemHint[],
+  requiredDeliverableId: string | null,
+): JplagDemoLanguage | null {
+  if (problems.length === 0) return null;
+
+  if (requiredDeliverableId) {
+    const linked = problems.find((p) => p.requiredDeliverableId === requiredDeliverableId);
+    const linkedMapped = mapDeclaredToJplag(linked?.language ?? null);
+    if (linkedMapped) return linkedMapped;
+    const first = problems.find((p) => p.ordinal === 1) ?? problems[0];
+    return mapDeclaredToJplag(first?.language ?? null);
+  }
+
+  if (problems.length === 1) {
+    return mapDeclaredToJplag(problems[0]?.language ?? null);
+  }
+
+  const mapped = problems.map((p) => mapDeclaredToJplag(p.language));
+  if (mapped.some((m) => m === null)) return null;
+  const distinct = new Set(mapped);
+  if (distinct.size === 1) return mapped[0] ?? null;
+  return null;
+}
+
+/** Errors from catalog/extract race - safe to retry after extract ready. */
+function isRetryableVsModelError(error: string | null): boolean {
+  if (!error) return true;
+  return /chờ|catalog|vsix|giải nén|extract|chưa có bản/i.test(error);
+}
+
 function requireJplagLanguage(lang: string | null): JplagDemoLanguage {
   const mapped = mapDeclaredToJplag(lang);
   if (!mapped) {
     throw new BadRequestException(
-      'Chưa xác định ngôn ngữ JPlag (cần required_deliverable.code_project.language).',
+      'Chưa xác định ngôn ngữ JPlag (cần exam_problem.language hoặc required_deliverable.code_project.language).',
     );
   }
   return mapped;

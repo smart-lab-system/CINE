@@ -85,7 +85,7 @@ describe('/teacher/rubrics - Rubric theo câu hỏi', () => {
     expect(screen.getByText('Cấu trúc dữ liệu')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText('GV Demo')).toBeInTheDocument();
-    expect(screen.getByText('Học kỳ 1 năm học 2026 - 2027')).toBeInTheDocument();
-    expect(screen.queryByText(/Năm học 2026 - 2027$/)).not.toBeInTheDocument();
+    expect(screen.getByText('HK1 (2026-2027)')).toBeInTheDocument();
+    expect(screen.queryByText('Học kỳ 1 năm học 2026 - 2027')).not.toBeInTheDocument();
   });
 });

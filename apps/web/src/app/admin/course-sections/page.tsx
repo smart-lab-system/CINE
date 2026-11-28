@@ -36,6 +36,7 @@ import {
   useCreateCourseSection,
   useTeacherOptions,
 } from '@/hooks/useAdminCourseSections';
+import { formatShortSemesterLabel } from '@/lib/master-data-defaults';
 import {
   useAcademicYears,
   useCourses,
@@ -337,7 +338,9 @@ function CourseSectionsInner() {
                         </Link>
                       </TableCell>
                       <TableCell>{row.courseName}</TableCell>
-                      <TableCell>{row.semesterName ?? '-'}</TableCell>
+                      <TableCell>
+                        {formatShortSemesterLabel(row.semesterName)}
+                      </TableCell>
                       <TableCell className="max-w-[14rem] truncate" title={row.nominalClassName ?? undefined}>
                         {row.nominalClassName ?? '-'}
                       </TableCell>

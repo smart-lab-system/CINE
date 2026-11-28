@@ -7,6 +7,11 @@ export type SetupInfoDraft = {
   roomId: string;
   /** `YYYY-MM-DD` */
   examDate: string;
+  /**
+   * Tạm thời: `HH:mm` tường. Khi có giá trị thì bỏ qua `startPeriod`
+   * và lấy giờ bắt đầu trực tiếp từ field này.
+   */
+  startTimeOfDay: string;
   /** 0 = chưa chọn */
   startPeriod: number;
   /** 0 = chưa chọn */
@@ -79,6 +84,7 @@ function infoEqual(a: SetupInfoDraft, b: SetupInfoDraft): boolean {
     a.examType === b.examType &&
     a.roomId === b.roomId &&
     a.examDate === b.examDate &&
+    (a.startTimeOfDay ?? '') === (b.startTimeOfDay ?? '') &&
     a.startPeriod === b.startPeriod &&
     a.endPeriod === b.endPeriod &&
     a.durationMinutes === b.durationMinutes

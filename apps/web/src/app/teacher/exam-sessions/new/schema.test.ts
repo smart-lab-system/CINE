@@ -101,7 +101,7 @@ describe('createExamSessionSchema - create-slim (không filenames/rubric)', () =
   });
 });
 
-describe('replaceRequiredDeliverablesSchema - file bên trong', () => {
+describe('replaceRequiredDeliverablesSchema - một gói archive', () => {
   function baseValues(requiredFilenames: unknown) {
     return { requiredFilenames };
   }
@@ -113,7 +113,14 @@ describe('replaceRequiredDeliverablesSchema - file bên trong', () => {
     expect(r.success).toBe(true);
   });
 
-  it('TỪ CHỐI entries khi tên file là .docx - phải khớp DTO backend', () => {
+  it('TỪ CHỐI file lẻ .docx - hub chỉ nhận .zip|.rar', () => {
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: 'a.docx' }]),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it('TỪ CHỐI entries trên .docx', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([{ value: 'a.docx', entries: [{ value: 'Main.java' }] }]),
     );
@@ -176,18 +183,25 @@ describe('replaceRequiredDeliverablesSchema - file bên trong', () => {
     expect(r.success).toBe(false);
   });
 
-  it('trộn deliverable có entries và không có entries trong cùng danh sách', () => {
+  it('TỪ CHỐI hai gói - mỗi phiên chỉ một gói nộp', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
       baseValues([
-        { value: 'Cau1.docx' },
+        { value: 'Cau1.zip' },
         { value: 'BaiThi.zip', entries: [{ value: 'Main.java' }] },
       ]),
     );
-    expect(r.success).toBe(true);
+    expect(r.success).toBe(false);
   });
 
-  it('TỪ CHỐI danh sách rỗng - hub phải lưu ≥ 1 file', () => {
+  it('TỪ CHỐI danh sách rỗng', () => {
     expect(replaceRequiredDeliverablesSchema.safeParse(baseValues([])).success).toBe(false);
+  });
+
+  it('nhận mẫu mặc định {SOMAY}_{MSSV}_{HOTEN}.zip', () => {
+    const r = replaceRequiredDeliverablesSchema.safeParse(
+      baseValues([{ value: '{SOMAY}_{MSSV}_{HOTEN}.zip' }]),
+    );
+    expect(r.success).toBe(true);
   });
 });
 
@@ -198,7 +212,7 @@ describe('replaceRequiredDeliverablesSchema - deliverableType/language', () => {
 
   it('mặc định deliverableType là document khi không khai', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
-      baseValues([{ value: 'Cau1.docx' }]),
+      baseValues([{ value: 'BaiThi.zip' }]),
     );
     expect(r.success).toBe(true);
     if (r.success) {
@@ -215,7 +229,7 @@ describe('replaceRequiredDeliverablesSchema - deliverableType/language', () => {
 
   it('TỪ CHỐI language trên deliverable KHÔNG phải code_project', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
-      baseValues([{ value: 'Cau1.docx', deliverableType: 'document', language: 'cpp' }]),
+      baseValues([{ value: 'BaiThi.zip', deliverableType: 'document', language: 'cpp' }]),
     );
     expect(r.success).toBe(false);
     if (!r.success) {
@@ -238,9 +252,11 @@ describe('replaceRequiredDeliverablesSchema - deliverableType/language', () => {
     expect(r.success).toBe(false);
   });
 
-  it('nhận java - khai được, chấm bằng đọc mã', () => {
+  it('nhận java trên gói zip - khai được, chấm bằng đọc mã', () => {
     const r = replaceRequiredDeliverablesSchema.safeParse(
-      baseValues([{ value: 'Main.java', deliverableType: 'code_project', language: 'java' }]),
+      baseValues([
+        { value: 'BaiThi.zip', deliverableType: 'code_project', language: 'java' },
+      ]),
     );
     expect(r.success).toBe(true);
   });
@@ -268,4 +284,3 @@ describe('describeCreateError', () => {
     );
   });
 });
-

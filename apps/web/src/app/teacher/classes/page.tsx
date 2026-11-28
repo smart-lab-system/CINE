@@ -23,6 +23,7 @@ import {
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { semesterOptions, useSemesterFilter } from '@/hooks/useSemesterFilter';
 import { useTeachingClasses } from '@/hooks/useTeaching';
+import { formatShortSemesterLabel } from '@/lib/master-data-defaults';
 import { filterTeachingClasses } from './filter-teaching-classes';
 
 /**
@@ -172,7 +173,9 @@ export default function TeacherClassesPage() {
                     <TableRow key={klass.id}>
                       <TableCell className="font-medium">{klass.name}</TableCell>
                       <TableCell>{klass.courseName}</TableCell>
-                      <TableCell>{klass.semesterName ?? '-'}</TableCell>
+                      <TableCell>
+                        {formatShortSemesterLabel(klass.semesterName)}
+                      </TableCell>
                       <TableCell
                         className="max-w-[14rem] truncate"
                         title={klass.nominalClassName ?? undefined}

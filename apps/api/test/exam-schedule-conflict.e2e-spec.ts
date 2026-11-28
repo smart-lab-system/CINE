@@ -234,8 +234,8 @@ describe('ExamSession schedule conflicts (e2e)', () => {
   /**
    * Test này TỪNG khẳng định điều ngược lại — "ca liền nhau là lịch bình
    * thường, không phải xung đột" — và nó đúng chừng nào chỉ xét cái PHÒNG.
-   * Phòng thì liền nhau được thật. NGƯỜI thì không: chủ đồ án chốt ngày
-   * 2026-09-21 rằng một giảng viên cần >= 30 phút giữa hai ca.
+   * Phòng thì liền nhau được thật. NGƯỜI thì không: hai phiên của cùng
+   * giảng viên cần >= TEACHER_GAP_MINUTES (5) giữa hai ca.
    */
   it('refuses back-to-back sessions for the SAME teacher — the room is free, the person is not', async () => {
     const day = freshDay();
@@ -256,13 +256,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     });
 
     expect(second.status).toBe(409);
-    // Phải nêu đích danh phiên kia và con số 30 — một 409 chung chung thì
+    // Phải nêu đích danh phiên kia và con số 5 — một 409 chung chung thì
     // giảng viên không biết phải dời đi bao nhiêu.
     expect(second.body.message).toContain('Ca liền trước');
-    expect(second.body.message).toContain('30');
+    expect(second.body.message).toContain('5');
   });
 
-  it('allows the next session once the gap is exactly 30 minutes', async () => {
+  it('allows the next session once the gap is exactly 5 minutes', async () => {
     const day = freshDay();
 
     const first = await createSession({
@@ -273,13 +273,13 @@ describe('ExamSession schedule conflicts (e2e)', () => {
     });
     expect(first.status).toBe(201);
 
-    // Ca 1 kết thúc 09:30; cách đúng 30 phút → bắt đầu 10:00.
+    // Ca 1 kết thúc 09:30; cách đúng 5 phút → bắt đầu 09:35.
     // Biên CHÍNH XÁC của ex_exam_session_teacher_gap.
     const second = await createSession({
       name: 'Ca kế tiếp',
       classId: otherClassId,
       roomName,
-      ...windowAt(day, 10),
+      ...windowAt(day, 9, 35),
     });
 
     expect(second.status).toBe(201);

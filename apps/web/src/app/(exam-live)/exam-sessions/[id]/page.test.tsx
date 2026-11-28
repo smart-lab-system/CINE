@@ -8,6 +8,10 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'session-123' }),
 }));
 
+vi.mock('./_components/SessionViolationsPanel', () => ({
+  SessionViolationsPanel: () => <div data-testid="session-violations-panel" />,
+}));
+
 // Session metadata (name/start/end/status) now comes through
 // useExamSessionDetail - mocked directly (not the underlying apiClient) so
 // these tests don't need a QueryClientProvider ancestor, same convention

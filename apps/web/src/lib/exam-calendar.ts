@@ -161,11 +161,11 @@ export function sessionVisual(
 /**
  * Khoảng cách tối thiểu giữa hai phiên của cùng một giảng viên.
  *
- * Phải khớp `TEACHER_GAP_MINUTES` ở apps/api và con số 30 trong
+ * Phải khớp `TEACHER_GAP_MINUTES` ở apps/api và con số trong
  * `examcollect.teacher_busy_range()`. Ở đây nó chỉ để BÁO, không để chặn -
  * server mới là nơi từ chối.
  */
-export const TEACHER_GAP_MINUTES = 30;
+export const TEACHER_GAP_MINUTES = 5;
 
 interface GapInput {
   id: string;
@@ -175,7 +175,7 @@ interface GapInput {
 }
 
 /**
- * Những phiên cách phiên liền trước dưới 30 phút.
+ * Những phiên cách phiên liền trước dưới TEACHER_GAP_MINUTES phút.
  *
  * Trang này chỉ hiện phiên CỦA CHÍNH giảng viên đang đăng nhập, nên mọi cặp
  * ở đây đều là "cùng một người" - không cần so `teacher_id`.
@@ -185,13 +185,14 @@ interface GapInput {
  * là màn hình đầu tiên phơi nó ra. Trả về số phút thật để thẻ nói được "cách
  * 15 phút" thay vì một cảnh báo chung chung.
  *
- * Bỏ qua `cancelled`/`completed`/`collecting` - cùng vị từ với ràng buộc, nếu
- * không giao diện sẽ báo động về những phiên mà server coi là đã nhả chỗ.
+ * Bỏ qua `cancelled`/`completed`/`collecting`/`missed` - cùng vị từ với
+ * `SLOT_FREE_STATUSES` / exclusion DB, nếu không giao diện sẽ báo động về
+ * những phiên mà server coi là đã nhả chỗ.
  */
 export function findGapViolations(sessions: GapInput[]): Map<string, number> {
   const out = new Map<string, number>();
   const live = sessions
-    .filter((s) => !['cancelled', 'completed', 'collecting'].includes(s.status))
+    .filter((s) => !['cancelled', 'completed', 'collecting', 'missed'].includes(s.status))
     .slice()
     .sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { CircleAlert, Info, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,24 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { ReplaceRequiredDeliverablesFormValues } from '../schema';
 
-/** Phải khớp ARCHIVE_EXTENSIONS trong schema.ts và trong
- *  apps/api/src/exam-session/dto/create-exam-session.dto.ts. */
-const ARCHIVE_EXTENSIONS = ['.zip', '.rar'] as const;
-
-function isArchiveFilename(value: string): boolean {
-  const lower = value.toLowerCase();
-  return ARCHIVE_EXTENSIONS.some((ext) => lower.endsWith(ext));
-}
-
 /**
- * Khối "Kiểm file bên trong (tuỳ chọn)", gắn dưới MỘT dòng file bắt buộc
- * trong `RequiredFilenamesInput` - một khối cho mỗi `index` của
- * `requiredFilenames`. Chỉ nghĩa khi bản thân dòng đó là `.zip`/`.rar`
- * (spec 2026-09-21-archive-content-validation-design.md §9.1).
- *
- * Hiện/ẩn theo chính giá trị đang gõ, không theo một cờ bật/tắt riêng -
- * cùng lý lẽ `filename-template.ts` phía backend đã viết cho chính nó:
- * một cờ là một sự thật thứ hai có thể lệch khỏi cái tên.
+ * Khối "Kiểm file bên trong (tuỳ chọn)" dưới gói nộp duy nhất.
+ * Hub chỉ còn một deliverable `.zip`|`.rar` nên khối này luôn hiện
+ * (spec 2026-11-28-single-archive-deliverable-design.md).
  */
 export function ArchiveEntriesField({ index }: { index: number }) {
   const {
@@ -34,32 +19,14 @@ export function ArchiveEntriesField({ index }: { index: number }) {
     formState: { errors },
   } = useFormContext<ReplaceRequiredDeliverablesFormValues>();
 
-  const filename = useWatch({ control, name: `requiredFilenames.${index}.value` }) ?? '';
-  const isArchive = isArchiveFilename(filename);
+  const packageName =
+    useWatch({ control, name: `requiredFilenames.${index}.value` }) ?? 'gói nộp';
 
-  const { fields, append, remove, replace } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
     name: `requiredFilenames.${index}.entries`,
   });
 
-  // Gõ lại thành KHÔNG PHẢI .zip/.rar thì XOÁ entries đã nhập - không giữ
-  // ngầm. Giữ lại sẽ gửi lên một danh sách mà DTO backend từ chối
-  // (EntriesOnlyOnArchiveConstraint), và người dùng không hiểu vì sao form
-  // báo lỗi ở một trường họ không còn nhìn thấy (spec §9.1).
-  useEffect(() => {
-    if (!isArchive && fields.length > 0) {
-      replace([]);
-    }
-  }, [isArchive, fields.length]);
-
-  if (!isArchive) {
-    return null;
-  }
-
-  // Lỗi ở tầng "cả danh sách entries" (quá trần .max(), trùng tên, hoặc
-  // khai trên deliverable không phải archive) - KHÔNG phải lỗi từng dòng.
-  // Xem doc comment §6.3 của archive-check.e2e-spec.ts cho hình dạng lỗi
-  // zodResolver thật sự trả về: message nằm trực tiếp trên node `entries`.
   const listError = errors.requiredFilenames?.[index]?.entries?.message;
 
   return (
@@ -78,7 +45,7 @@ export function ArchiveEntriesField({ index }: { index: number }) {
 
       {fields.length === 0 ? (
         <p className="text-caption text-muted-foreground">
-          Chưa khai file nào - nộp đúng tên <code className="font-mono">{filename}</code> là
+          Chưa khai file nào - nộp đúng tên <code className="font-mono">{packageName}</code> là
           đủ, hệ thống không mở ra kiểm gì bên trong.
         </p>
       ) : (
@@ -91,7 +58,7 @@ export function ArchiveEntriesField({ index }: { index: number }) {
                   htmlFor={`required-filename-${index}-entry-${entryIndex}`}
                   className="sr-only"
                 >
-                  {`File bên trong số ${entryIndex + 1} của ${filename}`}
+                  {`File bên trong số ${entryIndex + 1} của ${packageName}`}
                 </Label>
                 <div className="flex items-center gap-2">
                   <Input

@@ -162,7 +162,7 @@ function session(overrides: Record<string, unknown> = {}) {
     requiredDeliverables: [
       {
         id: 'd1',
-        requiredFilename: 'Bai.docx',
+        requiredFilename: '{SOMAY}_{MSSV}_{HOTEN}.zip',
         deliverableType: 'document',
         language: null,
         pipeline: 'one_shot',
@@ -223,6 +223,7 @@ describe('ExamSessionSetupPage', () => {
     expect(screen.queryByRole('button', { name: 'Hoàn tất' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Loại thi')).toBeDisabled();
     expect(screen.getByLabelText('Ngày thi')).toBeDisabled();
+    expect(screen.getByLabelText('Thời gian bắt đầu')).toBeDisabled();
     expect(screen.getByLabelText('Tiết bắt đầu')).toBeDisabled();
     expect(screen.getByLabelText('Tiết kết thúc')).toBeDisabled();
     expect(screen.getByLabelText('Thời lượng thi')).toBeDisabled();
@@ -251,7 +252,9 @@ describe('ExamSessionSetupPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Thư mục bài làm' })).toBeInTheDocument();
     expect(
-      screen.getByText('Hãy cấu hình thư mục bài thi (ít nhất 1 file nộp) trước khi mở phiên.'),
+      screen.getByText(
+        'Hãy cấu hình thư mục bài thi (một gói nộp .zip hoặc .rar) trước khi mở phiên.',
+      ),
     ).toBeInTheDocument();
     expect(openMutate).not.toHaveBeenCalled();
     expect(saveFolder).not.toHaveBeenCalled();
@@ -276,6 +279,7 @@ describe('ExamSessionSetupPage', () => {
         examType: 'GK',
         roomId: 'room-1',
         examDate: '2099-01-01',
+        startTimeOfDay: '',
         startPeriod: 1,
         endPeriod: 3,
         durationMinutes: 90,
