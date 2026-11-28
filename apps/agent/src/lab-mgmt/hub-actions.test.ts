@@ -10,6 +10,7 @@ describe('hub-actions', () => {
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('scan_extensions');
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('read_extension_activity');
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('sync_backend');
+    expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).toContain('prompt_identify');
     expect(ACTIONS_NOT_TRIGGERED_ON_REGISTER).not.toContain('refresh_machines');
   });
 

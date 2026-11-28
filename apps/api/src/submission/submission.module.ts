@@ -16,6 +16,7 @@ import { ArchiveCheckService } from './archive-check/archive-check.service';
 import { ArchiveCheckProcessor } from './archive-check/archive-check.processor';
 import { ArchiveRecheckService } from './archive-check/archive-recheck.service';
 import { ArchiveRecheckController } from './archive-check/archive-recheck.controller';
+import { SubmissionExtractModule } from './extract/submission-extract.module';
 
 /**
  * Imports ExamSessionModule for its already-exported ExamSessionService
@@ -35,6 +36,7 @@ import { ArchiveRecheckController } from './archive-check/archive-recheck.contro
     // định, còn ràng buộc ở đây là RAM container. Trộn chung là để cấu
     // hình nhịp bên này đổi ngầm hành vi bên kia.
     BullModule.registerQueue({ name: ARCHIVE_CHECK_QUEUE }),
+    SubmissionExtractModule,
   ],
   controllers: [SubmissionController, TeacherSubmissionsController, ArchiveRecheckController],
   providers: [
@@ -46,6 +48,6 @@ import { ArchiveRecheckController } from './archive-check/archive-recheck.contro
     ArchiveCheckProcessor,
     ArchiveRecheckService,
   ],
-  exports: [SubmissionService],
+  exports: [SubmissionService, SubmissionExtractModule],
 })
 export class SubmissionModule {}

@@ -10,6 +10,7 @@ import type { VsixDownloadEntry } from '../../src/lab-mgmt/violation-vsix';
 import type { TeacherHubState } from '../../src/lab-mgmt/teacher-hub';
 import type { StudentNodeState } from '../../src/lab-mgmt/student-node';
 import type { EffectiveExtension } from '../../src/lab-mgmt/allowlist-compare';
+import type { ExamAutoMonitorState } from '../../src/lab-mgmt/exam-auto-monitor';
 
 export const IPC_CHANNELS = {
   join: 'agent:join',
@@ -32,6 +33,14 @@ export const IPC_CHANNELS = {
   mgmtGetNodeState: 'mgmt:get-node-state',
   mgmtHubState: 'mgmt:hub-state',
   mgmtNodeState: 'mgmt:node-state',
+  mgmtPromptIdentify: 'mgmt:prompt-identify',
+  mgmtCancelIdentify: 'mgmt:cancel-identify',
+  mgmtSubmitIdentifyAndJoin: 'mgmt:submit-identify-and-join',
+  mgmtIdentifyRequired: 'mgmt:identify-required',
+  mgmtIdentifyCancelled: 'mgmt:identify-cancelled',
+  mgmtSetExamAutoMonitor: 'mgmt:set-exam-auto-monitor',
+  mgmtGetExamAutoMonitorState: 'mgmt:get-exam-auto-monitor-state',
+  mgmtExamAutoMonitorState: 'mgmt:exam-auto-monitor-state',
   mgmtRefreshMachines: 'mgmt:refresh-machines',
   mgmtScanExtensions: 'mgmt:scan-extensions',
   mgmtReadExtensionActivity: 'mgmt:read-extension-activity',
@@ -95,13 +104,32 @@ export interface MgmtStartTeacherHubRequest {
   courseId?: string | null;
   roomId?: string | null;
   examLabel?: string | null;
+  examSessionCode?: string | null;
+}
+
+export interface MgmtIdentifyRequiredPayload {
+  sessionCode: string;
+  examLabel?: string;
 }
 
 export interface MgmtContextPayload {
   courseId: string | null;
   examSessionId: string | null;
+  examSessionCode: string | null;
   roomId: string | null;
   examLabel: string | null;
+  pendingIdentify: MgmtIdentifyRequiredPayload | null;
+}
+
+export interface MgmtSubmitIdentifyAndJoinRequest {
+  mssv: string;
+}
+
+export interface MgmtSubmitIdentifyAndJoinResult {
+  ok: boolean;
+  error?: string;
+  mssv?: string;
+  fullName?: string;
 }
 
 export interface StartStudentNodeRequest {
@@ -204,6 +232,18 @@ export interface AgentApi {
   mgmtGetNodeState(): Promise<StudentNodeState | null>;
   onHubState(callback: (state: TeacherHubState) => void): () => void;
   onNodeState(callback: (state: StudentNodeState) => void): () => void;
+  mgmtPromptIdentify(machineIds?: string[]): Promise<{ ok: boolean; error?: string }>;
+  mgmtCancelIdentify(machineIds?: string[]): Promise<{ ok: boolean; error?: string }>;
+  mgmtSubmitIdentifyAndJoin(
+    payload: MgmtSubmitIdentifyAndJoinRequest,
+  ): Promise<MgmtSubmitIdentifyAndJoinResult>;
+  onIdentifyRequired(callback: (payload: MgmtIdentifyRequiredPayload) => void): () => void;
+  onIdentifyCancelled(callback: () => void): () => void;
+  mgmtSetExamAutoMonitor(
+    enabled: boolean,
+  ): Promise<{ ok: boolean; error?: string; state: ExamAutoMonitorState }>;
+  mgmtGetExamAutoMonitorState(): Promise<ExamAutoMonitorState>;
+  onExamAutoMonitorState(callback: (state: ExamAutoMonitorState) => void): () => void;
   mgmtRefreshMachines(): Promise<void>;
   mgmtScanExtensions(machineIds?: string[]): Promise<void>;
   mgmtReadExtensionActivity(machineIds?: string[]): Promise<void>;
@@ -219,4 +259,11 @@ export interface AgentApi {
 
 export type UiMode = 'landing' | 'exam' | 'mgmt';
 
-export type { TeacherHubState, StudentNodeState, EffectiveExtension, MachineComparison, RoomAggregate };
+export type {
+  TeacherHubState,
+  StudentNodeState,
+  EffectiveExtension,
+  MachineComparison,
+  RoomAggregate,
+  ExamAutoMonitorState,
+};

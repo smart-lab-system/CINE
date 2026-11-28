@@ -26,6 +26,7 @@ import { isCollectionOpen } from '../exam-session/exam-session.types';
 import { JplagExamService } from '../ide-extensions/jplag/jplag-exam.service';
 import { ARCHIVE_CHECK_QUEUE } from './archive-check/archive-check.constants';
 import { ArchiveCheckJob, ARCHIVE_CHECK_JOB_OPTIONS } from './archive-check/archive-check.types';
+import { SubmissionExtractService } from './extract/submission-extract.service';
 
 /** Postgres unique_violation. */
 const UNIQUE_VIOLATION = '23505';
@@ -125,6 +126,7 @@ export class SubmissionService {
     private readonly examSessions: ExamSessionService,
     private readonly storage: StorageService,
     private readonly jplagExam: JplagExamService,
+    private readonly submissionExtract: SubmissionExtractService,
     @InjectQueue(ARCHIVE_CHECK_QUEUE)
     private readonly archiveCheckQueue: Queue<ArchiveCheckJob>,
   ) {}
@@ -250,6 +252,16 @@ export class SubmissionService {
           enqueueError instanceof Error ? enqueueError.stack : String(enqueueError),
         );
       }
+    }
+
+    // Code Browser: luôn (re)extract sau confirm - file mới ghi đè object.
+    try {
+      await this.submissionExtract.enqueueExtract(saved.id, { force: true });
+    } catch (enqueueError) {
+      this.logger.error(
+        `Không đẩy được job giải nén bài nộp ${saved.id} — dùng "Xem bài nộp" / thử lại trên trang browse`,
+        enqueueError instanceof Error ? enqueueError.stack : String(enqueueError),
+      );
     }
 
     // JPlag vs unauthorized extension snippets (best-effort; do not fail confirm).

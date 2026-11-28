@@ -221,6 +221,19 @@ function registerIpcHandlers(c: SessionController, mgmt: LabMgmtRuntime): void {
   ipcMain.handle(IPC_CHANNELS.mgmtStop, () => mgmt.stop());
   ipcMain.handle(IPC_CHANNELS.mgmtGetHubState, () => mgmt.getHubState());
   ipcMain.handle(IPC_CHANNELS.mgmtGetNodeState, () => mgmt.getNodeState());
+  ipcMain.handle(IPC_CHANNELS.mgmtPromptIdentify, (_e, machineIds?: string[]) =>
+    mgmt.promptStudentIdentify(machineIds),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtCancelIdentify, (_e, machineIds?: string[]) =>
+    mgmt.cancelStudentIdentify(machineIds),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtSubmitIdentifyAndJoin, (_e, payload: { mssv: string }) =>
+    mgmt.submitIdentifyAndJoin(payload.mssv),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtSetExamAutoMonitor, (_e, enabled: boolean) =>
+    mgmt.setExamAutoMonitor(enabled),
+  );
+  ipcMain.handle(IPC_CHANNELS.mgmtGetExamAutoMonitorState, () => mgmt.getExamAutoMonitorState());
   ipcMain.handle(IPC_CHANNELS.mgmtRefreshMachines, () => {
     mgmt.refreshMachines();
   });
@@ -251,6 +264,8 @@ app.whenReady().then(() => {
   tray = createTray();
   controller = wireController();
   labMgmt = new LabMgmtRuntime(BACKEND_URL, app.getPath('userData'), () => mainWindow);
+  labMgmt.setDownloadsDir(app.getPath('downloads'));
+  labMgmt.setExamJoinHandler((payload) => controller?.join(payload));
   registerIpcHandlers(controller, labMgmt);
   void labMgmt.bootstrapLanFromCache();
 

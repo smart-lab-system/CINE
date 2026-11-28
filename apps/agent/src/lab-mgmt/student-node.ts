@@ -11,6 +11,7 @@ import {
   type LabCommandRequest,
   type LabCommandResponse,
   type LabMachineInfo,
+  type PromptIdentifyPayload,
 } from './lan-protocol';
 import { collectMachineHardware } from './machine-hardware';
 import { APP_VERSION, getHostname, getLocalIp, getOsLabel } from './machine-identity';
@@ -28,6 +29,11 @@ export interface StudentNodeState {
   hubSessionId: string | null;
   statusMessage: string | null;
   lastError: string | null;
+}
+
+export interface IdentifyRequiredEvent {
+  sessionCode: string;
+  examLabel?: string;
 }
 
 export class StudentNode extends EventEmitter {
@@ -256,6 +262,34 @@ export class StudentNode extends EventEmitter {
           ok: true,
           payload: { events: activity.events, warnings: activity.warnings },
         };
+      } else if (request.command === 'PROMPT_IDENTIFY') {
+        const raw = request.payload;
+        const sessionCode =
+          raw && typeof raw === 'object' && typeof (raw as PromptIdentifyPayload).sessionCode === 'string'
+            ? (raw as PromptIdentifyPayload).sessionCode.trim().toUpperCase()
+            : '';
+        if (!sessionCode) {
+          response = { ...base, ok: false, error: 'Thiếu mã phiên trong lệnh PROMPT_IDENTIFY.' };
+        } else {
+          const examLabel =
+            raw && typeof raw === 'object' && typeof (raw as PromptIdentifyPayload).examLabel === 'string'
+              ? (raw as PromptIdentifyPayload).examLabel
+              : undefined;
+          const event: IdentifyRequiredEvent = { sessionCode, examLabel };
+          this.statusMessage = examLabel
+            ? `Giảng viên yêu cầu nhập MSSV để vào: ${examLabel}`
+            : 'Giảng viên yêu cầu nhập MSSV để vào phiên thi.';
+          this.emitState();
+          this.emit('identifyRequired', event);
+          response = { ...base, ok: true, payload: { accepted: true } };
+        }
+      } else if (request.command === 'CANCEL_IDENTIFY') {
+        this.emit('identifyCancelled');
+        this.statusMessage = this.tcp && !this.tcp.destroyed
+          ? `Đã gắn với Hub ${this.hubHostname ?? ''}.`
+          : this.statusMessage;
+        this.emitState();
+        response = { ...base, ok: true, payload: { cancelled: true } };
       } else {
         response = { ...base, ok: false, error: `Lệnh không hỗ trợ: ${String(request.command)}` };
       }

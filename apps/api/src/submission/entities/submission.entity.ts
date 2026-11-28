@@ -7,6 +7,14 @@ import { RequiredDeliverableEntity } from '../../exam-session/entities/required-
 
 export type SubmissionVia = 'normal' | 'backup' | 'manual_pull';
 
+/** Trạng thái giải nén bài nộp để Code Browser (mirror ide_extension_extract_status). */
+export type SubmissionExtractStatus =
+  | 'none'
+  | 'pending'
+  | 'extracting'
+  | 'ready'
+  | 'failed';
+
 /**
  * Kết quả kiểm nội dung file nén — spec
  * `2026-09-21-archive-content-validation-design.md` §4.2.
@@ -209,4 +217,31 @@ export class SubmissionEntity extends BaseEntity {
    */
   @Column({ name: 'archive_check_error', type: 'text', nullable: true })
   archiveCheckError!: string | null;
+
+  @Column({
+    name: 'extract_status',
+    type: 'enum',
+    enum: ['none', 'pending', 'extracting', 'ready', 'failed'],
+    enumName: 'submission_extract_status',
+    default: 'none',
+  })
+  extractStatus!: SubmissionExtractStatus;
+
+  @Column({ name: 'extract_tree_key', type: 'varchar', nullable: true })
+  extractTreeKey!: string | null;
+
+  @Column({ name: 'extract_error', type: 'text', nullable: true })
+  extractError!: string | null;
+
+  @Column({ name: 'extract_started_at', type: 'timestamptz', nullable: true })
+  extractStartedAt!: Date | null;
+
+  @Column({ name: 'extract_finished_at', type: 'timestamptz', nullable: true })
+  extractFinishedAt!: Date | null;
+
+  @Column({ name: 'extract_entry_count', type: 'int', nullable: true })
+  extractEntryCount!: number | null;
+
+  @Column({ name: 'extract_total_bytes', type: 'bigint', nullable: true })
+  extractTotalBytes!: string | null;
 }

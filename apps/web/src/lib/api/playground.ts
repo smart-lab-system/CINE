@@ -84,6 +84,14 @@ export function createPlaygroundRun(language: PlaygroundLanguage, source: string
   });
 }
 
+/** Tạo run playground từ bài nộp gắn grading_result. */
+export function createPlaygroundRunFromGradingResult(gradingResultId: string) {
+  return playgroundFetch<PlaygroundRun>(
+    `/playground/runs/from-grading-result/${gradingResultId}`,
+    { method: 'POST' },
+  );
+}
+
 export async function uploadPlaygroundRun(language: PlaygroundLanguage, files: File[]) {
   const form = new FormData();
   form.set('language', language);

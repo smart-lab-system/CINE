@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type {
   CompareResultPayload,
+  ExamAutoMonitorState,
   MachineComparison,
   RoomAggregate,
   TeacherHubState,
@@ -11,6 +12,23 @@ import { ExtensionActivityPanel } from './ExtensionActivityPanel';
 import { ProposeRoomDialog } from './ProposeRoomDialog';
 import { VsixDownloadPanel } from './VsixDownloadPanel';
 
+function autoMonitorPhaseLabel(phase: ExamAutoMonitorState['phase']): string {
+  switch (phase) {
+    case 'waiting_active':
+      return 'Chờ phiên active / máy SV';
+    case 'running':
+      return 'Đang chạy pipeline…';
+    case 'baseline_done':
+      return 'Đã chạy baseline';
+    case 'periodic':
+      return 'Theo dõi định kỳ (10 phút)';
+    case 'finalized':
+      return 'Đã chạy lượt cuối (finalize)';
+    default:
+      return 'Tắt';
+  }
+}
+
 export function TeacherHubView({
   teacherEmail,
   onLeave,
@@ -20,7 +38,9 @@ export function TeacherHubView({
 }) {
   const [hub, setHub] = useState<TeacherHubState | null>(null);
   const [examLabel, setExamLabel] = useState<string | null>(null);
+  const [examSessionCode, setExamSessionCode] = useState<string | null>(null);
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [examSessionId, setExamSessionId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,16 +49,24 @@ export function TeacherHubView({
   const [vsix, setVsix] = useState<VsixDownloadResult | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [proposeOpen, setProposeOpen] = useState(false);
+  const [autoMon, setAutoMon] = useState<ExamAutoMonitorState | null>(null);
 
   useEffect(() => {
     const unsub = window.agent.onHubState(setHub);
+    const unsubAuto = window.agent.onExamAutoMonitorState(setAutoMon);
     void window.agent.mgmtGetHubState().then(setHub);
+    void window.agent.mgmtGetExamAutoMonitorState().then(setAutoMon);
     void window.agent.mgmtGetContext().then((ctx) => {
       setExamLabel(ctx.examLabel);
+      setExamSessionCode(ctx.examSessionCode);
       setCourseId(ctx.courseId);
+      setExamSessionId(ctx.examSessionId);
       if (ctx.courseId) void window.agent.mgmtSetCourseId(ctx.courseId);
     });
-    return unsub;
+    return () => {
+      unsub();
+      unsubAuto();
+    };
   }, []);
 
   const run = async (label: string, fn: () => Promise<void>): Promise<void> => {
@@ -76,6 +104,11 @@ export function TeacherHubView({
         <p className="rounded-md border border-border bg-surface px-3 py-2 text-small">
           <span className="font-semibold">Kỳ thi: </span>
           {examLabel}
+          {examSessionCode ? (
+            <span className="mt-0.5 block font-mono text-caption text-muted-foreground">
+              Mã phiên {examSessionCode}
+            </span>
+          ) : null}
           {courseId ? (
             <span className="mt-0.5 block font-mono text-caption text-muted-foreground">
               courseId {courseId}
@@ -88,7 +121,73 @@ export function TeacherHubView({
         </p>
       )}
 
+      {examSessionId && courseId ? (
+        <label className="flex items-start gap-2 rounded-md border border-border bg-surface px-3 py-2 text-small">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={!!autoMon?.enabled}
+            disabled={!!busy}
+            onChange={(e) => {
+              const enabled = e.target.checked;
+              void run('autoMon', async () => {
+                const result = await window.agent.mgmtSetExamAutoMonitor(enabled);
+                setAutoMon(result.state);
+                if (!result.ok) {
+                  setError(result.error ?? 'Không đổi được chế độ theo dõi.');
+                  return;
+                }
+                setMessage(
+                  enabled
+                    ? 'Đã bật theo dõi extension trong phiên (baseline / 10 phút / finalize).'
+                    : 'Đã tắt theo dõi tự động.',
+                );
+              });
+            }}
+          />
+          <span>
+            <span className="font-semibold">Theo dõi extension trong phiên</span>
+            <span className="mt-0.5 block text-caption text-muted-foreground">
+              Opt-in: quét → đối chiếu → sync. VSIX blocked chỉ ở lượt cuối khi phiên
+              collecting/completed.
+            </span>
+            {autoMon && autoMon.phase !== 'idle' ? (
+              <span className="mt-1 block text-caption text-muted-foreground">
+                {autoMonitorPhaseLabel(autoMon.phase)}
+                {autoMon.lastSessionStatus ? ` · status ${autoMon.lastSessionStatus}` : ''}
+                {autoMon.lastRunAt
+                  ? ` · lần chạy ${autoMon.lastRunKind ?? ''} ${autoMon.lastRunAt}`
+                  : ''}
+                {autoMon.lastResultSummary ? ` · ${autoMon.lastResultSummary}` : ''}
+                {autoMon.lastError ? ` · lỗi: ${autoMon.lastError}` : ''}
+              </span>
+            ) : null}
+          </span>
+        </label>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
+        <AppButton
+          type="button"
+          disabled={!!busy || !examSessionCode}
+          onClick={() =>
+            void run('prompt', async () => {
+              const ids = selected.size > 0 ? [...selected] : undefined;
+              const result = await window.agent.mgmtPromptIdentify(ids);
+              if (!result.ok) {
+                setError(result.error ?? 'Không gửi được lệnh.');
+                return;
+              }
+              setMessage(
+                ids?.length
+                  ? `Đã gửi yêu cầu nhập MSSV tới ${ids.length} máy.`
+                  : 'Đã gửi yêu cầu nhập MSSV tới mọi máy đang nối.',
+              );
+            })
+          }
+        >
+          Yêu cầu SV nhập MSSV và vào phiên
+        </AppButton>
         <AppButton
           type="button"
           disabled={!!busy}

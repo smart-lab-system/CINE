@@ -19,7 +19,9 @@ import {
 } from '../../src/lab-mgmt/machine-role-cache';
 import {
   aggregateRoom,
+  cancelIdentify,
   compareAllowlist,
+  promptIdentify,
   readExtensionActivity,
   refreshMachines,
   scanExtensions,
@@ -27,6 +29,11 @@ import {
   type RoomAggregate,
 } from '../../src/lab-mgmt/hub-actions';
 import type { EffectiveExtension } from '../../src/lab-mgmt/allowlist-compare';
+import type { IdentifyRequiredEvent } from '../../src/lab-mgmt/student-node';
+import {
+  ExamAutoMonitor,
+  type ExamAutoMonitorState,
+} from '../../src/lab-mgmt/exam-auto-monitor';
 import { createHash } from 'node:crypto';
 import {
   collectSyncArtifactTargets,
@@ -41,13 +48,21 @@ export class LabMgmtRuntime {
   private machineId: string;
   private courseId: string | null = null;
   private examSessionId: string | null = null;
+  private examSessionCode: string | null = null;
   private roomId: string | null = null;
   private examLabel: string | null = null;
   private pendingTeacher: HubTeacherIdentity | null = null;
   /** Phòng của máy GV đã khớp lúc login (null = bootstrap chưa gắn máy GV). */
   private verifiedTeacherRoomId: string | null = null;
+  /** Lệnh PROMPT_IDENTIFY đang chờ SV nhập MSSV (máy node). */
+  private pendingIdentify: IdentifyRequiredEvent | null = null;
+  private examJoinHandler:
+    | ((payload: { studentId: string; sessionCode: string }) => void)
+    | null = null;
   private lastComparisons: MachineComparison[] = [];
   private lastEffective: EffectiveExtension[] = [];
+  private readonly examAutoMonitor = new ExamAutoMonitor();
+  private downloadsDir: string | null = null;
 
   constructor(
     private readonly backendUrl: string,
@@ -55,6 +70,17 @@ export class LabMgmtRuntime {
     private readonly getWindow: () => BrowserWindow | null,
   ) {
     this.machineId = loadOrCreateMachineId(userDataPath);
+  }
+
+  setDownloadsDir(dir: string): void {
+    this.downloadsDir = dir;
+  }
+
+  /** Main gắn SessionController.join để auto-join sau MSSV. */
+  setExamJoinHandler(
+    handler: ((payload: { studentId: string; sessionCode: string }) => void) | null,
+  ): void {
+    this.examJoinHandler = handler;
   }
 
   /** Mở app: nếu đã cache role thì bật LAN Hub/Node ngay (kể cả offline). */
@@ -201,6 +227,14 @@ export class LabMgmtRuntime {
     this.node = new StudentNode(this.machineId, '', 'Chưa đăng nhập');
     this.node.on('state', (state) => {
       this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtNodeState, state);
+    });
+    this.node.on('identifyRequired', (event: IdentifyRequiredEvent) => {
+      this.pendingIdentify = event;
+      this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtIdentifyRequired, event);
+    });
+    this.node.on('identifyCancelled', () => {
+      this.pendingIdentify = null;
+      this.getWindow()?.webContents.send(IPC_CHANNELS.mgmtIdentifyCancelled);
     });
     this.node.start();
   }
@@ -359,6 +393,7 @@ export class LabMgmtRuntime {
     courseId?: string | null;
     roomId?: string | null;
     examLabel?: string | null;
+    examSessionCode?: string | null;
   }): Promise<{ ok: boolean; error?: string }> {
     if (!this.pendingTeacher) {
       return { ok: false, error: 'Chưa đăng nhập giảng viên.' };
@@ -411,8 +446,10 @@ export class LabMgmtRuntime {
       };
     }
 
+    this.stopExamAutoMonitor();
     this.courseId = opts?.courseId?.trim() || null;
     this.examSessionId = opts?.examSessionId?.trim() || null;
+    this.examSessionCode = opts?.examSessionCode?.trim().toUpperCase() || null;
     this.roomId = roomId;
     this.examLabel = opts?.examLabel?.trim() || null;
 
@@ -426,9 +463,67 @@ export class LabMgmtRuntime {
     return {
       courseId: this.courseId,
       examSessionId: this.examSessionId,
+      examSessionCode: this.examSessionCode,
       roomId: this.roomId,
       examLabel: this.examLabel,
+      pendingIdentify: this.pendingIdentify,
     };
+  }
+
+  async promptStudentIdentify(machineIds?: string[]): Promise<{ ok: boolean; error?: string }> {
+    if (!this.hub) {
+      return { ok: false, error: 'Hub chưa chạy.' };
+    }
+    if (!this.examSessionCode) {
+      return {
+        ok: false,
+        error: 'Chưa gắn kỳ thi có mã phiên. Chọn kỳ thi hôm nay trước khi gửi lệnh.',
+      };
+    }
+    await promptIdentify(
+      this.hub,
+      { sessionCode: this.examSessionCode, examLabel: this.examLabel },
+      machineIds,
+    );
+    return { ok: true };
+  }
+
+  async cancelStudentIdentify(machineIds?: string[]): Promise<{ ok: boolean; error?: string }> {
+    if (!this.hub) {
+      return { ok: false, error: 'Hub chưa chạy.' };
+    }
+    await cancelIdentify(this.hub, machineIds);
+    return { ok: true };
+  }
+
+  /**
+   * SV nhập MSSV sau PROMPT_IDENTIFY: lookup catalog → bind Node → agent:join.
+   */
+  async submitIdentifyAndJoin(mssv: string): Promise<{
+    ok: boolean;
+    error?: string;
+    mssv?: string;
+    fullName?: string;
+  }> {
+    if (!this.pendingIdentify?.sessionCode) {
+      return {
+        ok: false,
+        error: 'Chưa nhận lệnh vào phiên từ giảng viên.',
+      };
+    }
+    if (!this.examJoinHandler) {
+      return { ok: false, error: 'Chưa gắn bộ điều khiển phiên thi.' };
+    }
+
+    const started = await this.startStudentNode(mssv);
+    if (!started.ok || !started.mssv) {
+      return started;
+    }
+
+    const sessionCode = this.pendingIdentify.sessionCode;
+    this.examJoinHandler({ studentId: started.mssv, sessionCode });
+    this.pendingIdentify = null;
+    return { ok: true, mssv: started.mssv, fullName: started.fullName };
   }
 
   private async stopHubOnly(): Promise<void> {
@@ -492,11 +587,14 @@ export class LabMgmtRuntime {
 
   /** Rời màn hình đăng nhập/hub - giữ LAN Hub/Node. */
   async leaveSession(): Promise<void> {
+    this.stopExamAutoMonitor();
     this.pendingTeacher = null;
     this.courseId = null;
     this.examSessionId = null;
+    this.examSessionCode = null;
     this.examLabel = null;
     this.roomId = null;
+    this.pendingIdentify = null;
     this.lastComparisons = [];
     this.lastEffective = [];
     if (this.hub) {
@@ -508,6 +606,7 @@ export class LabMgmtRuntime {
   }
 
   async stop(): Promise<void> {
+    this.stopExamAutoMonitor();
     if (this.hub) {
       await this.hub.stop();
       this.hub = null;
@@ -520,10 +619,93 @@ export class LabMgmtRuntime {
     this.verifiedTeacherRoomId = null;
     this.courseId = null;
     this.examSessionId = null;
+    this.examSessionCode = null;
     this.roomId = null;
     this.examLabel = null;
+    this.pendingIdentify = null;
     this.lastComparisons = [];
     this.lastEffective = [];
+  }
+
+  getExamAutoMonitorState(): ExamAutoMonitorState {
+    return this.examAutoMonitor.getState();
+  }
+
+  setExamAutoMonitor(enabled: boolean): { ok: boolean; error?: string; state: ExamAutoMonitorState } {
+    if (!enabled) {
+      this.stopExamAutoMonitor();
+      this.pushExamAutoMonitorState();
+      return { ok: true, state: this.examAutoMonitor.getState() };
+    }
+    if (!this.hub || !this.pendingTeacher?.accessToken) {
+      return {
+        ok: false,
+        error: 'Hub chưa sẵn sàng hoặc chưa đăng nhập giảng viên.',
+        state: this.examAutoMonitor.getState(),
+      };
+    }
+    if (!this.examSessionId || !this.courseId) {
+      return {
+        ok: false,
+        error: 'Chỉ bật được khi đã gắn kỳ thi hôm nay (có môn).',
+        state: this.examAutoMonitor.getState(),
+      };
+    }
+    const examSessionId = this.examSessionId;
+    const token = this.pendingTeacher.accessToken;
+    this.examAutoMonitor.start(examSessionId, {
+      fetchStatus: async () => {
+        const res = await fetch(`${this.backendUrl}/exam-sessions/${encodeURIComponent(examSessionId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const body = (await res.json()) as { status?: string };
+        return body.status ?? 'unknown';
+      },
+      hasNodes: () => (this.hub?.getState().nodes.length ?? 0) > 0,
+      runPipeline: async () => {
+        this.refreshMachines();
+        await this.scanExtensions();
+        const compared = await this.compareAllowlist();
+        const sync = await this.syncBackend();
+        if (!sync.ok) {
+          throw new Error(sync.error ?? 'Đồng bộ thất bại.');
+        }
+        const machines = compared.comparisons.length;
+        const violations = compared.comparisons.filter((c) => c.violationCount > 0).length;
+        return {
+          summary: `Quét+đối chiếu ${machines} máy (${violations} có vi phạm), đã sync`,
+        };
+      },
+      downloadVsix: async () => {
+        if (!this.downloadsDir) {
+          return { summary: 'Bỏ qua VSIX (chưa có thư mục Downloads)' };
+        }
+        const result = await this.downloadViolationVsix(this.downloadsDir);
+        if (!result.ok) {
+          return { summary: `VSIX: ${result.error ?? 'lỗi'}` };
+        }
+        const n = result.entries.filter((e) => e.status === 'downloaded' || e.status === 'already').length;
+        return { summary: `VSIX blocked: ${n} gói` };
+      },
+      onState: () => this.pushExamAutoMonitorState(),
+    });
+    this.pushExamAutoMonitorState();
+    return { ok: true, state: this.examAutoMonitor.getState() };
+  }
+
+  private stopExamAutoMonitor(): void {
+    this.examAutoMonitor.stop();
+    this.pushExamAutoMonitorState();
+  }
+
+  private pushExamAutoMonitorState(): void {
+    this.getWindow()?.webContents.send(
+      IPC_CHANNELS.mgmtExamAutoMonitorState,
+      this.examAutoMonitor.getState(),
+    );
   }
 
   getHubState() {

@@ -1,2 +1,6 @@
 # Large paper / LaTeX / figures - exclude from Cursor indexing & agent context
 docs/paper/
+
+# Electron builder output - indexing locks app.asar on Windows (EBUSY unlink)
+apps/agent/release/
+apps/agent/release-*/

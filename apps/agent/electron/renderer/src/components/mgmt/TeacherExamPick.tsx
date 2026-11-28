@@ -45,8 +45,15 @@ export function TeacherExamPick({
             courseId: exam.courseId,
             roomId: exam.roomId,
             examLabel: `${exam.name} · ${exam.courseName}`,
+            examSessionCode: exam.code,
           }
-        : { examSessionId: null, courseId: null, roomId: null, examLabel: null },
+        : {
+            examSessionId: null,
+            courseId: null,
+            roomId: null,
+            examLabel: null,
+            examSessionCode: null,
+          },
     );
     setBusy(false);
     if (!res.ok) {
