@@ -89,7 +89,7 @@ Thay `AiServiceBand`, băng "bị kẹt" và khối "đã dừng" của `Running
 
 Băng "Dịch vụ AI lỗi" hiện còn hiện khi phiên không đang chấm; thông báo sự cố mới giữ hành vi đó (chỉ dòng (a) và (c) khi không chạy). Thành phần mới đặt trong `_components/` cạnh các thành phần cũ; `AiServiceBand` và phần liên quan của `RunningPanel` bị xoá cùng test của chúng, test mới bao quát cả bốn tổ hợp.
 
-**Xong khi:** ở phiên có 2 bài AI lỗi và 2 bài kẹt (cùng dữ liệu ảnh TRƯỚC), khoảng từ đầu trang tới danh sách bài ≤ 300px ở 1280px (hiện khoảng 490px; đo lại bằng `evaluate` trên cả hai lượt chụp, vì 490px là số đo từ ảnh); số bài nói trong băng khớp dòng và thanh; không còn khối nào chỉ nhắc lại số đã hiện.
+**Xong khi:** ở phiên có 2 bài AI lỗi và 2 bài kẹt (cùng dữ liệu ảnh TRƯỚC), khoảng từ đầu trang tới danh sách bài ≤ 350px ở 1280px. [Đổi từ 300px sau khi đo thật (27/11/2026): trước 512px, sau 345px. Mục tiêu 300px ước lượng từ ảnh (khoảng 490px) và không đạt được mà không cắt một trong năm phần của khối tình trạng (tiêu đề tóm tắt, thanh, chú giải, ước tính, câu "mở được ngay"); chủ dự án chọn chấp nhận 345px.]; số bài nói trong băng khớp dòng và thanh; không còn khối nào chỉ nhắc lại số đã hiện.
 
 ### 5.3 PR 3 — trang một bài đang chấm và các lỗi nhỏ
 
