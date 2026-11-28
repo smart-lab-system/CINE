@@ -73,6 +73,10 @@ export function RunningPanel({
   const stuckCount = progress.byStatus.ai_grading ?? progress.pending;
   const stall = stuck ? stalledSeconds(samples, Date.now()) : null;
   const lastRead = lastReadAt === null ? null : new Date(lastReadAt).toLocaleTimeString('vi-VN');
+  // Danh sách kết quả có thể đi trước tiến độ một nhịp (ngay sau khi chấm lại): số bài lỗi AI không vượt số bài dừng đang hiện.
+  const ai = aiServiceIncident(results);
+  const aiCount = ai ? Math.min(ai.count, stopped) : 0;
+  const aiShown = ai && aiCount >= 2 ? { count: aiCount, reason: ai.reason } : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -106,7 +110,7 @@ export function RunningPanel({
       )}
 
       <SessionIncidents
-        aiService={aiServiceIncident(results)}
+        aiService={aiShown}
         stuck={stuck ? { count: stuckCount, stall: stall === null ? null : describeStall(stall) } : null}
         stopped={online && stopped > 0 ? { count: stopped, regradable: Math.min(systemStopped, stopped) } : null}
       />
@@ -121,6 +125,7 @@ export function RunningPanel({
           aria-valuenow={progress.done}
           aria-valuemin={0}
           aria-valuemax={progress.total}
+          aria-valuetext={`${withResult} có kết quả, ${progress.pending} đang chấm, ${stopped} dừng`}
           className="flex h-3 w-full overflow-hidden rounded-full bg-border"
         >
           {parts

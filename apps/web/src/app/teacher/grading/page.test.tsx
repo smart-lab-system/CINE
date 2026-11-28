@@ -362,11 +362,19 @@ describe('AI service band (G3 D12)', () => {
   it('is mounted on the session screen, says what is shared, and leaves the regrade to the one button at the top', () => {
     h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
     render(<GradingPage />);
-    const band = screen.getByText(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/).closest('[role="alert"]') as HTMLElement;
+    const band = screen.getByText(/Dịch vụ AI lỗi - 2 bài không chấm được cùng một lý do/).closest('[role="status"]') as HTMLElement;
     expect(within(band).queryByRole('button')).not.toBeInTheDocument();
     const regrades = screen.getAllByRole('button', { name: /Chấm lại \d+ bài lỗi hệ thống/ });
     expect(regrades).toHaveLength(1);
     expect(regrades[0]).toHaveAttribute('data-scope', JSON.stringify({ kind: 'session', sessionId: 's1', reason: null, count: 2 }));
+  });
+
+  it('on the prepare view while a run is going the incident is still shown, exactly once', () => {
+    search = 'sessionId=s1&view=prepare';
+    h.progress = { ...h.progress, data: progress({ pending: 2, done: 1, total: 3 }) };
+    h.results = { ...h.results, data: [stopped('a'), stopped('b'), result({ id: 'c' })] };
+    render(<GradingPage />);
+    expect(screen.getAllByText(/Dịch vụ AI lỗi - 2 bài/)).toHaveLength(1);
   });
 
   it('is absent when only one result stopped', () => {

@@ -77,7 +77,7 @@ describe('SessionIncidents', () => {
     render(<SessionIncidents stopped={{ count: 2, regradable: 2 }} />);
     expect(screen.getByText(/2 bài đã dừng/)).toBeInTheDocument();
     expect(screen.getByText(/2 bài trong số đó chấm lại được/)).toBeInTheDocument();
-    expect(screen.getByText('Bấm nút chấm lại ở đầu trang để xếp lại các bài này.')).toBeInTheDocument();
+    expect(screen.getByText('Bấm nút chấm lại ở đầu trang để xếp lại các bài lỗi hệ thống.')).toBeInTheDocument();
   });
 
   it('stopped line with nothing regradable (all submission-class) has no regrade clause and no pointer to the button', () => {
@@ -89,10 +89,34 @@ describe('SessionIncidents', () => {
 
   it('all three incidents share ONE alert, one list of three items and one closing sentence', () => {
     render(<SessionIncidents aiService={ai} stuck={{ count: 3, stall: null }} stopped={{ count: 2, regradable: 2 }} />);
-    const alerts = screen.getAllByRole('alert');
+    const alerts = screen.getAllByRole('status');
     expect(alerts).toHaveLength(1);
     expect(within(alerts[0]).getAllByRole('listitem')).toHaveLength(3);
     expect(screen.getAllByText(/Bấm nút chấm lại ở đầu trang/)).toHaveLength(1);
+  });
+
+  it('a reason without a final stop still ends its sentence (no run-on)', () => {
+    const { container } = render(<SessionIncidents aiService={{ count: 2, reason: 'Hết giờ' }} />);
+    expect(container.textContent).toContain('“Hết giờ”. Đếm trong danh sách');
+  });
+
+  it('stopped results that are not regradable do not blame the system', () => {
+    const { container } = render(<SessionIncidents stopped={{ count: 1, regradable: 0 }} />);
+    expect(container.textContent).toContain('1 bài đã dừng.');
+    expect(container.textContent).not.toContain('vì lỗi hệ thống');
+  });
+
+  it('a stuck line with a submission-only stop: one closing sentence, naming both kinds, no regrade clause for the stopped one', () => {
+    render(<SessionIncidents stuck={{ count: 1, stall: null }} stopped={{ count: 1, regradable: 0 }} />);
+    expect(screen.getAllByText(/Bấm nút chấm lại/)).toHaveLength(1);
+    expect(screen.getByText(/các bài lỗi hệ thống và bài bị kẹt/)).toBeInTheDocument();
+    expect(screen.queryByText(/chấm lại được/)).not.toBeInTheDocument();
+  });
+
+  it('the incident is announced politely (role status), so a poll does not re-interrupt', () => {
+    render(<SessionIncidents stuck={{ count: 1, stall: '2 phút' }} />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('the list keeps its role for VoiceOver (Tailwind removes list-style)', () => {

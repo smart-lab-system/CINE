@@ -4,6 +4,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { GradingResult } from '@/lib/api/grading';
 import { groupByUngradableReason } from '@/lib/regrade-triage';
 
+/** Lý do đã có dấu câu kết thúc thì không thêm dấu chấm sau dấu ngoặc kép. */
+const endsSentence = (text: string): boolean => /[.!?…]$/.test(text.trim());
+
 /** Nhiều bài lớp system dừng vì CÙNG một lý do (UI spec §3.8, hàng "dịch vụ AI lỗi"). */
 export interface AiServiceIncident {
   count: number;
@@ -50,12 +53,12 @@ export function SessionIncidents({
   const pointsToRegrade = aiService !== null || stuck !== null || (stopped !== null && stopped.regradable > 0);
 
   return (
-    <Alert variant="warning">
+    <Alert variant="warning" role="status">
       <AlertDescription className="flex flex-col gap-2">
         <ul role="list" className="flex flex-col gap-1.5">
           {aiService && (
             <li>
-              <strong>Dịch vụ AI lỗi - {aiService.count} bài không chấm được cùng một lý do:</strong> “{aiService.reason}” Đếm
+              <strong>Dịch vụ AI lỗi - {aiService.count} bài không chấm được cùng một lý do:</strong> “{aiService.reason}”{endsSentence(aiService.reason) ? ' ' : '. '}Đếm
               trong danh sách hiện tại, không đo được khoảng thời gian; chờ dịch vụ ổn rồi chấm lại.
             </li>
           )}
@@ -67,12 +70,18 @@ export function SessionIncidents({
           )}
           {stopped && (
             <li>
-              <strong>{stopped.count} bài đã dừng.</strong> Bài dừng vì lỗi hệ thống chưa có điểm nào
-              {stopped.regradable > 0 ? ` - ${stopped.regradable} bài trong số đó chấm lại được.` : '.'}
+              <strong>{stopped.count} bài đã dừng.</strong>
+              {stopped.regradable > 0
+                ? ` Bài dừng vì lỗi hệ thống chưa có điểm nào - ${stopped.regradable} bài trong số đó chấm lại được.`
+                : ' Các bài này chưa có điểm.'}
             </li>
           )}
         </ul>
-        {pointsToRegrade && <span className="text-caption">Bấm nút chấm lại ở đầu trang để xếp lại các bài này.</span>}
+        {pointsToRegrade && (
+          <span className="text-caption">
+            Bấm nút chấm lại ở đầu trang để xếp lại {stuck ? 'các bài lỗi hệ thống và bài bị kẹt' : 'các bài lỗi hệ thống'}.
+          </span>
+        )}
       </AlertDescription>
     </Alert>
   );
