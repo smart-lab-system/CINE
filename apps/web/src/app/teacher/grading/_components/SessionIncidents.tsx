@@ -55,7 +55,7 @@ export function SessionIncidents({
         <ul role="list" className="flex flex-col gap-1.5">
           {aiService && (
             <li>
-              <strong>Dịch vụ AI lỗi - {aiService.count} bài không chấm được cùng một lý do:</strong> “{aiService.reason}”. Đếm
+              <strong>Dịch vụ AI lỗi - {aiService.count} bài không chấm được cùng một lý do:</strong> “{aiService.reason}” Đếm
               trong danh sách hiện tại, không đo được khoảng thời gian; chờ dịch vụ ổn rồi chấm lại.
             </li>
           )}

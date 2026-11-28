@@ -59,6 +59,12 @@ describe('SessionIncidents', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('a reason that already ends with a full stop is not followed by a second one (screenshot 27/11: "cần chấm lại.”.")', () => {
+    const { container } = render(<SessionIncidents aiService={{ count: 2, reason: 'Máy chấm tạm thời không phản hồi; cần chấm lại.' }} />);
+    expect(container.textContent).toContain('“Máy chấm tạm thời không phản hồi; cần chấm lại.”');
+    expect(container.textContent).not.toContain('”.');
+  });
+
   it('stuck line says how many, and how long when it is known', () => {
     const { rerender } = render(<SessionIncidents stuck={{ count: 3, stall: '2 phút' }} />);
     expect(screen.getByText(/3 bài đang bị kẹt/)).toBeInTheDocument();
