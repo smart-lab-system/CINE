@@ -65,6 +65,18 @@ export const IDE_EXTENSION_EXTRACTED_DIR = 'extracted';
 export const IDE_EXTENSION_TREE_OBJECT = 'tree.json';
 
 /**
+ * Unpacked submission entries (Code Browser):
+ *
+ *   submissions/{examSessionId}/{studentMssv}/{requiredDeliverableId}/extracted/...
+ *   submissions/{...}/extracted/tree.json
+ *
+ * Original object key stays `submissions/{session}/{mssv}/{deliverableId}`
+ * (no trailing slash). S3 treats these as distinct keys.
+ */
+export const SUBMISSION_EXTRACTED_DIR = 'extracted';
+export const SUBMISSION_TREE_OBJECT = 'tree.json';
+
+/**
  * One *logical* path segment inside an unpacked VSIX (tree.json / browse UI).
  * Broader than SAFE_KEY_SEGMENT_REGEX so names like `[Content_Types].xml`
  * survive, but still forbids separators and `..`. Object keys use

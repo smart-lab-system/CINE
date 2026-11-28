@@ -21,7 +21,9 @@ import {
   DOWNLOAD_CONTENT_TYPE,
   DOWNLOAD_URL_TTL_SECONDS,
   SAFE_KEY_SEGMENT_REGEX,
+  SUBMISSION_EXTRACTED_DIR,
   SUBMISSION_KEY_PREFIX,
+  SUBMISSION_TREE_OBJECT,
   UPLOAD_URL_TTL_SECONDS,
 } from './storage.types';
 
@@ -187,6 +189,71 @@ export class StorageService {
         );
       }
     }
+  }
+
+  /**
+   * `submissions/{sessionId}/{mssv}/{deliverableId}/extracted`
+   * Segments match `buildSubmissionKey` (UUID / validated MSSV only).
+   */
+  buildSubmissionExtractPrefix(
+    examSessionId: string,
+    studentMssv: string,
+    requiredDeliverableId: string,
+  ): string {
+    return `${this.buildSubmissionKey(examSessionId, studentMssv, requiredDeliverableId)}/${SUBMISSION_EXTRACTED_DIR}`;
+  }
+
+  /** `.../extracted/tree.json` */
+  buildSubmissionTreeKey(
+    examSessionId: string,
+    studentMssv: string,
+    requiredDeliverableId: string,
+  ): string {
+    return `${this.buildSubmissionExtractPrefix(examSessionId, studentMssv, requiredDeliverableId)}/${SUBMISSION_TREE_OBJECT}`;
+  }
+
+  /**
+   * Object key for one unpacked submission file. Same encoding rules as
+   * {@link buildIdeExtensionExtractedFileKey}.
+   */
+  buildSubmissionExtractedFileKey(
+    examSessionId: string,
+    studentMssv: string,
+    requiredDeliverableId: string,
+    relativePath: string,
+  ): string {
+    const prefix = this.buildSubmissionExtractPrefix(
+      examSessionId,
+      studentMssv,
+      requiredDeliverableId,
+    );
+    const raw = relativePath.replace(/\\/g, '/');
+    if (
+      !raw ||
+      raw.includes('\0') ||
+      raw.startsWith('/') ||
+      /^[A-Za-z]:/.test(raw) ||
+      raw.split('/').includes('..')
+    ) {
+      throw new InternalServerErrorException(
+        `Refusing to build an extract key from an unsafe path: ${JSON.stringify(relativePath)}`,
+      );
+    }
+    const normalized = raw.replace(/\/+$/, '');
+    const parts = normalized.split('/').filter((s) => s && s !== '.');
+    if (parts.length === 0) {
+      throw new InternalServerErrorException(
+        `Refusing to build an extract key from an empty path: ${JSON.stringify(relativePath)}`,
+      );
+    }
+    for (const segment of parts) {
+      if (!EXTRACT_PATH_SEGMENT_REGEX.test(segment)) {
+        throw new InternalServerErrorException(
+          `Refusing to build an extract key from an unsafe segment: ${JSON.stringify(segment)}`,
+        );
+      }
+    }
+    return `${prefix}/${parts.map(encodeExtractStorageSegment).join('/')}`;
   }
 
   /**

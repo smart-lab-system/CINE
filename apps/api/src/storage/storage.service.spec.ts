@@ -141,6 +141,35 @@ describe('StorageService', () => {
     });
   });
 
+  describe('buildSubmission extract keys', () => {
+    it('builds extract prefix and tree key under the submission object key', () => {
+      expect(service.buildSubmissionExtractPrefix(SESSION_ID, MSSV, DELIVERABLE_ID)).toBe(
+        `submissions/${SESSION_ID}/${MSSV}/${DELIVERABLE_ID}/extracted`,
+      );
+      expect(service.buildSubmissionTreeKey(SESSION_ID, MSSV, DELIVERABLE_ID)).toBe(
+        `submissions/${SESSION_ID}/${MSSV}/${DELIVERABLE_ID}/extracted/tree.json`,
+      );
+    });
+
+    it('builds extracted file keys under the prefix', () => {
+      expect(
+        service.buildSubmissionExtractedFileKey(SESSION_ID, MSSV, DELIVERABLE_ID, 'src/main.cpp'),
+      ).toBe(`submissions/${SESSION_ID}/${MSSV}/${DELIVERABLE_ID}/extracted/src/main.cpp`);
+    });
+
+    it('bang-hex-encodes brackets in submission extract paths', () => {
+      expect(
+        service.buildSubmissionExtractedFileKey(SESSION_ID, MSSV, DELIVERABLE_ID, '[note].txt'),
+      ).toBe(`submissions/${SESSION_ID}/${MSSV}/${DELIVERABLE_ID}/extracted/!5Bnote!5D.txt`);
+    });
+
+    it.each(['../x', '/abs', 'a/../../b', ''])('refuses unsafe relative path %s', (bad) => {
+      expect(() =>
+        service.buildSubmissionExtractedFileKey(SESSION_ID, MSSV, DELIVERABLE_ID, bad),
+      ).toThrow(InternalServerErrorException);
+    });
+  });
+
   describe('generateUploadUrl', () => {
     it('signs a PUT scoped to exactly the requested bucket and key', async () => {
       const key = service.buildSubmissionKey(SESSION_ID, MSSV, DELIVERABLE_ID);

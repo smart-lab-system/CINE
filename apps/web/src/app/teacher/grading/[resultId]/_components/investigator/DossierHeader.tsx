@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatusPill } from '@/components/status-pill';
 import { useOpenSubmission } from '@/hooks/useAudit';
+import { PlaygroundFromSubmissionButton } from '../../../_components/PlaygroundFromSubmissionButton';
 
 export function DossierHeader({
   resultId,
@@ -56,6 +57,7 @@ export function DossierHeader({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <PlaygroundFromSubmissionButton resultId={resultId} sessionId={sessionId} />
           <div className="flex flex-col items-end gap-1">
             <Button variant="outline" loading={openSubmission.isPending} onClick={() => openSubmission.mutate()}>
               Mở bài nộp

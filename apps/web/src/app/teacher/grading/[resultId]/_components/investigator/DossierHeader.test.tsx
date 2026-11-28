@@ -5,6 +5,13 @@ import { DossierHeader } from './DossierHeader';
 
 const openSubmission = vi.hoisted(() => ({ mutate: vi.fn(), isPending: false, isError: false, error: null as Error | null }));
 vi.mock('@/hooks/useAudit', () => ({ useOpenSubmission: () => openSubmission }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}));
+vi.mock('@/lib/api/playground', () => ({
+  createPlaygroundRunFromGradingResult: vi.fn(),
+  PlaygroundHttpError: class PlaygroundHttpError extends Error {},
+}));
 
 const baseProps = {
   resultId: 'r1',

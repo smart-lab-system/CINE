@@ -56,6 +56,8 @@ import { TestRunService } from './test-bundle/test-run.service';
 import { TestRunStore } from './test-bundle/test-run.store';
 import { AuditReviewController } from './audit/audit-review.controller';
 import { AuditReviewService } from './audit/audit-review.service';
+import { SubmissionBrowseService } from './submission-browse.service';
+import { SubmissionExtractModule } from '../submission/extract/submission-extract.module';
 import { AutoBreakerService } from './auto-breaker/auto-breaker.service';
 import { ReviewGroupService } from './review-group/review-group.service';
 import { ReviewGroupConfirmService } from './review-group/review-group-confirm.service';
@@ -152,6 +154,8 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     ]),
     StorageModule,
     ExamSessionModule,
+    // Code Browser bài nộp (module tách riêng - tránh vòng IdeExtensions ↔ Grading).
+    SubmissionExtractModule,
     // Sửa điểm sau khi đã công bố phải để lại dấu vết — Security rule 4.
     AdminModule,
     // Chấm điểm chạy trên hàng đợi: một job một bài (CLAUDE.md §7.1.3).
@@ -172,6 +176,7 @@ export function selectAdvocateProvider(claude: ClaudeAdvocateProvider): Advocate
     TestRunService,
     TestRunStore,
     AuditReviewService,
+    SubmissionBrowseService,
     // Cầu dao tự chốt (spec 2026-10-21 §5.3): nhãn kiểm mẫu, tắt, bật lại. Phụ thuộc ScoreService; chiều ngược lại
     // đi qua các hàm thuần trong `auto-breaker/breaker-queries.ts`, không qua provider này.
     AutoBreakerService,
