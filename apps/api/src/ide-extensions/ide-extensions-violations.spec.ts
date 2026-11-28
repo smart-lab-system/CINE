@@ -294,4 +294,99 @@ describe('IdeExtensionsService listViolations', () => {
     expect(rows[0].primaryVersionId).toBe('ver-1');
     expect(rows[0].extractStatus).toBe('ready');
   });
+
+  it('does not attach JPlag run from a different extension version', async () => {
+    const catalogVer = {
+      id: 'ver-1',
+      extensionPk: 'cat-1',
+      version: '1.0.0',
+      extractStatus: 'ready' as const,
+      approvalStatus: 'pending',
+      extension: undefined,
+    };
+
+    const jplagRuns = {
+      find: jest.fn(async () => [
+        {
+          id: 'run-other',
+          examSessionId: EXAM_ID,
+          extensionIdentifier: EXT_ID,
+          extensionVersion: '2.0.0',
+          versionId: 'ver-2',
+          kind: 'vs_model',
+          status: 'completed',
+          similarityText: 0.99,
+          createdAt: new Date('2026-11-02T12:00:00Z'),
+        },
+      ]),
+    };
+
+    const versionsFind = jest
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([catalogVer]);
+
+    const scanItems = {
+      find: jest.fn(async () => [
+        makeBlockedItem({
+          id: ITEM_A,
+          scanId: SCAN_A,
+          version: '1.0.0',
+          mssv: 'SV001',
+          scannedAt: new Date('2026-11-01T10:00:00Z'),
+        }),
+      ]),
+    };
+    const students = {
+      find: jest.fn(async () => [{ mssv: 'SV001', fullName: 'Nguyen Van A' }]),
+    };
+    const extensions = {
+      find: jest.fn(async () => [
+        {
+          id: 'cat-1',
+          identifier: EXT_ID,
+          displayName: 'Evil Tool',
+          publisher: 'evil',
+          publishedAt: new Date('2026-01-01T00:00:00Z'),
+          lastReleasedAt: new Date('2026-06-01T00:00:00Z'),
+        },
+      ]),
+    };
+    const courses = {
+      find: jest.fn(async () => [{ id: COURSE_ID, name: 'Lập trình Web', code: 'WEB' }]),
+    };
+    const dataSource = { getRepository: jest.fn(() => courses) };
+    const versions = { find: versionsFind };
+
+    const service = new IdeExtensionsService(
+      dataSource as never,
+      {} as never,
+      {} as never,
+      extensions as never,
+      versions as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      scanItems as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      students as never,
+      jplagRuns as never,
+    );
+
+    const rows = await service.listViolations(EXAM_ID);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].primaryVersion).toBe('1.0.0');
+    expect(rows[0].jplagText).toBeNull();
+    expect(rows[0].jplagStatus).toBeNull();
+    expect(rows[0].jplagRunId).toBeNull();
+  });
 });

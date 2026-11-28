@@ -13,6 +13,7 @@ export function SessionFolderStep({
   materialFilenames,
   initialFolder,
   previewFiles,
+  legacyExtraFilenames = [],
 }: {
   /** Giữ prop cũ từ page nếu còn truyền; bước này không upload đề. */
   materialsEditable?: boolean;
@@ -25,6 +26,7 @@ export function SessionFolderStep({
     language: string | null;
     entries: string[];
   }[];
+  legacyExtraFilenames?: string[];
 }) {
   const setup = useSetupDraft();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -46,6 +48,7 @@ export function SessionFolderStep({
             key={setup.epoch}
             initialValues={initialFolder}
             materialFilenames={materialFilenames}
+            legacyExtraFilenames={legacyExtraFilenames}
           />
         ) : (
           <ExamFolderPreview materialFilenames={materialFilenames} requiredFiles={previewFiles} />

@@ -37,6 +37,7 @@ import { SessionExamRubricStep } from './_components/SessionExamRubricStep';
 import { SessionReviewStep } from './_components/SessionReviewStep';
 import { SessionExamRosterCard } from './_components/SessionExamRosterCard';
 import {
+  legacyExtraDeliverableNames,
   toDeliverableFormValues,
   toServerFolderBaseline,
 } from './_components/RequiredDeliverablesEditor';
@@ -436,6 +437,7 @@ function SetupBody({
           initialFolder={
             setup.draft?.folder ?? toDeliverableFormValues(session.requiredDeliverables)
           }
+          legacyExtraFilenames={legacyExtraDeliverableNames(session.requiredDeliverables)}
           previewFiles={session.requiredDeliverables.map((item) => ({
             pattern: item.requiredFilename,
             deliverableType: item.deliverableType,

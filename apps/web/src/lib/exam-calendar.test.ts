@@ -104,7 +104,7 @@ describe('findGapViolations', () => {
     expect(found.has('a')).toBe(false);
   });
 
-  it.each(['cancelled', 'completed', 'collecting'])(
+  it.each(['cancelled', 'completed', 'collecting', 'missed'])(
     'phiên %s đã nhả chỗ nên không kéo theo cảnh báo',
     (status) => {
       const found = findGapViolations([

@@ -1129,14 +1129,15 @@ export class IdeExtensionsService {
           : undefined;
 
       const runsForExt = jplagByIdentifier.get(ext.extensionId) ?? [];
-      const matchingRuns = primaryVersionStr
+      // Chỉ lấy run khớp primary version - không fallback sang version khác
+      // (tránh hiện similarity/status của bản B khi incident đang ở bản A).
+      const pickPool = primaryVersionStr
         ? runsForExt.filter(
             (r) =>
               r.extensionVersion === primaryVersionStr ||
               (catalogVer && r.versionId === catalogVer.id),
           )
         : runsForExt;
-      const pickPool = matchingRuns.length > 0 ? matchingRuns : runsForExt;
       const completed = pickPool.find((r) => r.status === 'completed');
       const active = pickPool.find(
         (r) => r.status === 'pending' || r.status === 'running',

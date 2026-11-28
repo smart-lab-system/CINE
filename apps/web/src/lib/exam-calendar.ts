@@ -185,13 +185,14 @@ interface GapInput {
  * là màn hình đầu tiên phơi nó ra. Trả về số phút thật để thẻ nói được "cách
  * 15 phút" thay vì một cảnh báo chung chung.
  *
- * Bỏ qua `cancelled`/`completed`/`collecting` - cùng vị từ với ràng buộc, nếu
- * không giao diện sẽ báo động về những phiên mà server coi là đã nhả chỗ.
+ * Bỏ qua `cancelled`/`completed`/`collecting`/`missed` - cùng vị từ với
+ * `SLOT_FREE_STATUSES` / exclusion DB, nếu không giao diện sẽ báo động về
+ * những phiên mà server coi là đã nhả chỗ.
  */
 export function findGapViolations(sessions: GapInput[]): Map<string, number> {
   const out = new Map<string, number>();
   const live = sessions
-    .filter((s) => !['cancelled', 'completed', 'collecting'].includes(s.status))
+    .filter((s) => !['cancelled', 'completed', 'collecting', 'missed'].includes(s.status))
     .slice()
     .sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
 
