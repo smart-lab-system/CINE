@@ -130,4 +130,62 @@ describe('ExamAutoMonitor', () => {
     await vi.advanceTimersByTimeAsync(EXAM_AUTO_PERIODIC_MS);
     expect(monitor.getState().skippedOverlap).toBeGreaterThanOrEqual(1);
   });
+
+  it('defers finalize until in-flight pipeline finishes', async () => {
+    let status: ExamSessionStatusLike = 'active';
+    const { monitor, runPipeline, downloadVsix } = createMonitor({
+      status: () => status,
+      pipelineDelayMs: EXAM_AUTO_POLL_MS + 5_000,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runPipeline).toHaveBeenCalledTimes(1);
+    expect(monitor.getState().phase).toBe('running');
+
+    status = 'collecting';
+    await vi.advanceTimersByTimeAsync(EXAM_AUTO_POLL_MS);
+    // Finalize bị hoãn vì baseline còn chạy - chưa đánh dấu finalized.
+    expect(monitor.getState().phase).not.toBe('finalized');
+    expect(monitor.getState().enabled).toBe(true);
+    expect(downloadVsix).not.toHaveBeenCalled();
+    expect(monitor.getState().skippedOverlap).toBeGreaterThanOrEqual(1);
+
+    // Hoàn tất baseline; finalize được xếp hàng và bắt đầu pipeline riêng.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(runPipeline).toHaveBeenCalledTimes(2);
+    expect(downloadVsix).not.toHaveBeenCalled();
+    expect(monitor.getState().phase).toBe('running');
+
+    // Hoàn tất pipeline finalize (+ VSIX).
+    await vi.advanceTimersByTimeAsync(EXAM_AUTO_POLL_MS + 5_000);
+    expect(downloadVsix).toHaveBeenCalledTimes(1);
+    expect(monitor.getState().phase).toBe('finalized');
+    expect(monitor.getState().enabled).toBe(false);
+    expect(monitor.getState().lastRunKind).toBe('finalize');
+  });
+
+  it('fetches fresh status on periodic tick instead of stale cache', async () => {
+    let status: ExamSessionStatusLike = 'active';
+    const fetchStatus = vi.fn(async () => status);
+    const runPipeline = vi.fn(async () => ({ summary: 'pipeline ok' }));
+    const downloadVsix = vi.fn(async () => ({ summary: 'vsix ok' }));
+    const monitor = new ExamAutoMonitor();
+    monitor.start('exam-1', {
+      fetchStatus,
+      hasNodes: () => true,
+      runPipeline,
+      downloadVsix,
+      setIntervalFn: setInterval,
+      clearIntervalFn: clearInterval,
+      now: () => new Date('2026-11-28T00:00:00.000Z'),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runPipeline).toHaveBeenCalledTimes(1);
+    const callsAfterBaseline = fetchStatus.mock.calls.length;
+
+    status = 'collecting';
+    await vi.advanceTimersByTimeAsync(EXAM_AUTO_PERIODIC_MS);
+    expect(fetchStatus.mock.calls.length).toBeGreaterThan(callsAfterBaseline);
+    expect(downloadVsix).toHaveBeenCalledTimes(1);
+    expect(monitor.getState().lastRunKind).toBe('finalize');
+  });
 });

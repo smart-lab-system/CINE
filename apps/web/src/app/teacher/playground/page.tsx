@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, ExternalLink, Play, Square, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   createPlaygroundRun,
   createSampleExpressRun,
@@ -42,7 +43,18 @@ function isDone(status: PlaygroundRun['status']) {
   return status === 'finished' || status === 'failed';
 }
 
+/**
+ * `useSearchParams` đòi ranh giới Suspense khi build / prerender tĩnh.
+ */
 export default function TeacherPlaygroundPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+      <TeacherPlaygroundPageInner />
+    </Suspense>
+  );
+}
+
+function TeacherPlaygroundPageInner() {
   const searchParams = useSearchParams();
   const runIdParam = searchParams.get('runId');
   const resultIdParam = searchParams.get('resultId');

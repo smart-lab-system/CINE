@@ -1,9 +1,10 @@
 'use client';
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, use, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   getSubmissionBrowse,
@@ -102,7 +103,20 @@ function TreeRows({
   );
 }
 
+/** `useSearchParams` đòi ranh giới Suspense khi build / prerender. */
 export default function SubmissionBrowsePage({
+  params,
+}: {
+  params: Promise<{ resultId: string }>;
+}) {
+  return (
+    <Suspense fallback={<Skeleton className="h-40 w-full" />}>
+      <SubmissionBrowsePageInner params={params} />
+    </Suspense>
+  );
+}
+
+function SubmissionBrowsePageInner({
   params,
 }: {
   params: Promise<{ resultId: string }>;

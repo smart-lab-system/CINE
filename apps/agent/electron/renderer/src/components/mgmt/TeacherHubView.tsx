@@ -130,8 +130,7 @@ export function TeacherHubView({
             disabled={!!busy}
             onChange={(e) => {
               const enabled = e.target.checked;
-              void (async () => {
-                setError(null);
+              void run('autoMon', async () => {
                 const result = await window.agent.mgmtSetExamAutoMonitor(enabled);
                 setAutoMon(result.state);
                 if (!result.ok) {
@@ -143,7 +142,7 @@ export function TeacherHubView({
                     ? 'Đã bật theo dõi extension trong phiên (baseline / 10 phút / finalize).'
                     : 'Đã tắt theo dõi tự động.',
                 );
-              })();
+              });
             }}
           />
           <span>

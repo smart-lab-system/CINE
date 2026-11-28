@@ -73,6 +73,8 @@ export class ExamAutoMonitor {
   private running = false;
   private baselineDone = false;
   private finalized = false;
+  /** Finalize bị hoãn vì pipeline khác đang chạy - chạy lại khi `running` clear. */
+  private pendingFinalize = false;
   private deps: ExamAutoMonitorDeps | null = null;
   private examSessionId: string | null = null;
   private setInterval: typeof setInterval = setInterval;
@@ -101,6 +103,7 @@ export class ExamAutoMonitor {
     this.now = deps.now ?? (() => new Date());
     this.baselineDone = false;
     this.finalized = false;
+    this.pendingFinalize = false;
     this.running = false;
     this.patch({
       enabled: true,
@@ -125,6 +128,7 @@ export class ExamAutoMonitor {
     this.examSessionId = null;
     this.baselineDone = false;
     this.finalized = false;
+    this.pendingFinalize = false;
     this.running = false;
     this.state = initialState();
   }
@@ -170,7 +174,8 @@ export class ExamAutoMonitor {
         return;
       }
       await this.runKind('baseline');
-      if (this.finalized) return;
+      // Finalize có thể đã bắt đầu từ finally (pending cleared + running).
+      if (this.finalized || this.pendingFinalize || this.running) return;
       this.baselineDone = true;
       this.ensurePeriodicTimer();
       this.patch({ phase: 'periodic' });
@@ -191,18 +196,43 @@ export class ExamAutoMonitor {
   }
 
   private async onPeriodicTick(): Promise<void> {
-    if (!this.state.enabled || this.finalized) return;
-    if (this.state.lastSessionStatus && isOver(this.state.lastSessionStatus)) {
+    if (!this.state.enabled || this.finalized || !this.deps) return;
+
+    // Luôn fetch status mới - không dựa cache poll (có thể stale tới EXAM_AUTO_POLL_MS).
+    let status: ExamSessionStatusLike;
+    try {
+      status = await this.deps.fetchStatus();
+    } catch (err) {
+      this.patch({
+        lastError: `Không đọc được trạng thái phiên: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      return;
+    }
+    this.patch({ lastSessionStatus: String(status), lastError: null });
+
+    if (isOver(status)) {
       await this.runFinalize();
       return;
     }
-    if (this.state.lastSessionStatus !== 'active') return;
+    if (status !== 'active') return;
     await this.runKind('periodic');
   }
 
   private async runFinalize(): Promise<void> {
     if (this.finalized) return;
-    await this.runKind('finalize');
+    if (this.running) {
+      // Pipeline khác đang chạy - xếp hàng finalize, không đánh dấu xong sớm.
+      this.pendingFinalize = true;
+      this.patch({ skippedOverlap: this.state.skippedOverlap + 1 });
+      return;
+    }
+    // Clear trước khi chạy để finally của runKind không gọi lại finalize.
+    this.pendingFinalize = false;
+    const ran = await this.runKind('finalize');
+    if (!ran) {
+      this.pendingFinalize = true;
+      return;
+    }
     this.finalized = true;
     this.stopTimersOnly();
     this.patch({
@@ -211,11 +241,12 @@ export class ExamAutoMonitor {
     });
   }
 
-  private async runKind(kind: 'baseline' | 'periodic' | 'finalize'): Promise<void> {
-    if (!this.deps) return;
+  /** @returns true nếu pipeline thực sự chạy (không bị skip overlap). */
+  private async runKind(kind: 'baseline' | 'periodic' | 'finalize'): Promise<boolean> {
+    if (!this.deps) return false;
     if (this.running) {
       this.patch({ skippedOverlap: this.state.skippedOverlap + 1 });
-      return;
+      return false;
     }
     this.running = true;
     this.patch({ phase: 'running', lastError: null });
@@ -235,6 +266,7 @@ export class ExamAutoMonitor {
         lastError: null,
         phase: nextPhase,
       });
+      return true;
     } catch (err) {
       this.patch({
         lastError: err instanceof Error ? err.message : String(err),
@@ -242,8 +274,12 @@ export class ExamAutoMonitor {
         lastRunKind: kind,
         phase: kind === 'finalize' ? 'finalized' : kind === 'baseline' ? 'waiting_active' : 'periodic',
       });
+      return true;
     } finally {
       this.running = false;
+      if (this.pendingFinalize && !this.finalized) {
+        void this.runFinalize();
+      }
     }
   }
 }
