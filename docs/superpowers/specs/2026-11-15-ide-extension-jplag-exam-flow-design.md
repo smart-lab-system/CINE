@@ -106,7 +106,7 @@ sequenceDiagram
 | `extension_id` / `version_id` | Extension bị cờ |
 | `kind` | `vs_model` \| `vs_student_batch` (hoặc chỉ dùng item cho student) |
 | `status` | `pending` \| `running` \| `completed` \| `failed` |
-| `language` | Từ deliverable / session |
+| `language` | Ưu tiên đề (`exam_problem.language`), thiếu thì fallback `required_deliverable.code_project.language` |
 | `trigger` | `scan` \| `submission` \| `manual` |
 | `error` | nullable |
 | timestamps | |

@@ -164,5 +164,6 @@ Empty state: «Chưa có extension vi phạm chưa được duyệt.»
 ## 8. Ngoài / follow-up
 
 - Deep-link từ incident → phiên thi grading.
-- Filter theo `examSessionId` / khoảng ngày trên API.
+- Filter theo `examSessionId` trên API + panel Vận hành phiên thi — xem [`2026-11-28-session-ops-violations-panel-design.md`](./2026-11-28-session-ops-violations-panel-design.md).
+- Filter khoảng ngày trên API.
 - Đưa lại course policy UI chỗ khác nếu cần.
