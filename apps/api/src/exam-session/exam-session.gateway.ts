@@ -5,6 +5,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
@@ -18,9 +19,12 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Server, Socket } from 'socket.io';
 import { Subscription } from 'rxjs';
+import { Repository } from 'typeorm';
 import { AccessTokenPayload } from '../auth/types';
 import { agentRoom, teacherRoom } from '../common/exam-live-rooms';
 import { extractAccessToken, isPlainObject } from '../common/exam-live-socket';
+import { ComputerEntity } from '../master-data/entities/computer.entity';
+import { RoomEntity } from '../master-data/entities/room.entity';
 import { AgentJoinDto } from './dto/agent-join.dto';
 import { TeacherSubscribeDto } from './dto/teacher-subscribe.dto';
 import { ExamSessionService } from './exam-session.service';
@@ -30,7 +34,7 @@ import { AccessRequestStore } from './access-request.store';
 import { AgentJoinLockStore } from './agent-join-lock.store';
 import { AttendanceService } from '../agent-connection/attendance.service';
 import { StorageService } from '../storage/storage.service';
-import { renderFilename } from './filename-template';
+import { renderFilename, resolveSeatLabel } from './filename-template';
 import { ExamMaterialService } from './exam-material.service';
 import { STUDENT_MSSV_REGEX } from '../common/student-mssv';
 import { RECOLLECT_ACK_TIMEOUT_MS } from './recollect.types';
@@ -51,7 +55,7 @@ interface AgentJoinAckDeliverable {
   /**
    * RESOLVED for this student, not the pattern the teacher declared.
    *
-   * A deliverable may be declared as `{PHONG}_{MSSV}_{TEN}.docx`; the
+   * A deliverable may be declared as `{MSSV}_{HOTEN}_{SOMAY}.docx`; the
    * server fills it from the roster and the room and sends the finished
    * name. The agent creates exactly what it is told and never composes a
    * filename itself — submission identity is still decided before the exam,
@@ -238,6 +242,10 @@ export class ExamSessionGateway
     private readonly storage: StorageService,
     private readonly materials: ExamMaterialService,
     private readonly sessionRoster: SessionRosterService,
+    @InjectRepository(ComputerEntity)
+    private readonly computers: Repository<ComputerEntity>,
+    @InjectRepository(RoomEntity)
+    private readonly rooms: Repository<RoomEntity>,
   ) {}
 
   /**
@@ -456,6 +464,18 @@ export class ExamSessionGateway
       session.id,
     );
 
+    // {SOMAY}: ưu tiên Vị trí (computer.location); không có thì mãPhòng_hostname.
+    const roomCode = await this.resolveRoomCode(session.roomId, session.roomName);
+    const location = await this.resolveComputerLocation(
+      session.roomId,
+      dto.machineName ?? null,
+    );
+    const seatLabel = resolveSeatLabel({
+      location,
+      roomCode,
+      hostname: dto.machineName ?? null,
+    });
+
     // Rendered once, here, and used for both fields of the ack — the agent
     // must never see two different names for the same deliverable.
     const filenameContext = {
@@ -464,8 +484,8 @@ export class ExamSessionGateway
       // student. A name they typed is not identity and must not end up in a
       // filename either.
       studentName: enrollment.studentName,
-      roomName: session.roomName,
-      machineName: dto.machineName ?? null,
+      seatLabel,
+      roomLabel: roomCode,
     };
     const resolved = deliverablesWithEntries.map(({ deliverable, entries }) => ({
       id: deliverable.id,
@@ -494,12 +514,9 @@ export class ExamSessionGateway
     // mở được từ lớp đã gán nên fallback session.teacherId luôn có.
     client.data.homeTeacherId = enrollment.homeTeacherId ?? session.teacherId;
     // Đọc lại ở submission:confirm để render bản chụp entry bên trong file
-    // nén — spec 2026-09-21-archive-content-validation-design.md §5.2.
-    // `machineName` KHÔNG được ghi xuống DB ở đâu cả, nên nếu không giữ ở
-    // đây thì `{SOMAY}` trong tên file bên trong không render lại được sau
-    // khi socket đóng — và render với null cho ra 'UNKNOWN', đánh trượt
-    // oan đúng nhóm em đã gặp sự cố máy móc.
+    // nén — seatLabel đã resolve lúc join; không ghi DB.
     client.data.machineName = dto.machineName ?? null;
+    client.data.seatLabel = seatLabel;
 
     // Joined AFTER all validation passed, and only to the agents room —
     // never teacherRoom (see its comment: that would leak every
@@ -801,6 +818,37 @@ export class ExamSessionGateway
    * stops spamming self-heals within one window without ever
    * disconnecting.
    */
+  /** Mã phòng catalog; không có roomId thì dùng snapshot roomName trên phiên. */
+  private async resolveRoomCode(
+    roomId: string | null,
+    roomNameFallback: string,
+  ): Promise<string> {
+    if (!roomId) {
+      return roomNameFallback;
+    }
+    const room = await this.rooms.findOne({ where: { id: roomId } });
+    return room?.code?.trim() || roomNameFallback;
+  }
+
+  /** Vị trí máy trong danh sách máy tính (room + hostname), hoặc null. */
+  private async resolveComputerLocation(
+    roomId: string | null,
+    hostname: string | null,
+  ): Promise<string | null> {
+    if (!roomId || !hostname?.trim()) {
+      return null;
+    }
+    const computer = await this.computers
+      .createQueryBuilder('c')
+      .where('c.room_id = :roomId', { roomId })
+      .andWhere('LOWER(c.hostname) = LOWER(:hostname)', {
+        hostname: hostname.trim(),
+      })
+      .getOne();
+    const location = computer?.location?.trim();
+    return location || null;
+  }
+
   private isAgentJoinRateLimited(client: Socket): boolean {
     const now = Date.now();
     const windowStart = now - ExamSessionGateway.AGENT_JOIN_RATE_WINDOW_MS;

@@ -14,9 +14,11 @@ import {
   getDisplaySessionStatus,
 } from '@/lib/exam-session-display';
 import { useStatusClock } from '@/lib/use-status-clock';
+import { periodSelectLabel } from '@/lib/school-periods';
 import { ExamFolderPreview } from './ExamFolderPreview';
 import { SetupChecklist, type SetupChecklistResult } from './SetupChecklist';
 import type { SetupInfoDraft } from './setup-draft';
+import { infoDraftToLocalRange } from './setup-info-schedule';
 
 function showLocal(value: string): string {
   if (!value) return '-';
@@ -119,12 +121,36 @@ export function SessionReviewStep({
             <dd className="text-lg font-medium text-foreground">{EXAM_TYPE_LABELS[info.examType] ?? info.examType}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Bắt đầu</dt>
-            <dd className="text-lg font-medium text-foreground">{showLocal(info.startLocal)}</dd>
+            <dt className="text-muted-foreground">Ngày thi</dt>
+            <dd className="text-lg font-medium text-foreground">{info.examDate || '-'}</dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Kết thúc</dt>
-            <dd className="text-lg font-medium text-foreground">{showLocal(info.endLocal)}</dd>
+            <dt className="text-muted-foreground">Tiết bắt đầu</dt>
+            <dd className="text-lg font-medium text-foreground">
+              {info.startPeriod ? periodSelectLabel(info.startPeriod) : '-'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Tiết kết thúc</dt>
+            <dd className="text-lg font-medium text-foreground">
+              {info.endPeriod ? periodSelectLabel(info.endPeriod) : '-'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Thời lượng thi</dt>
+            <dd className="text-lg font-medium text-foreground">
+              {info.durationMinutes ? `${info.durationMinutes} phút` : '-'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Giờ làm bài</dt>
+            <dd className="text-lg font-medium text-foreground">
+              {(() => {
+                const range = infoDraftToLocalRange(info);
+                if (!range) return '-';
+                return `${showLocal(range.startLocal)} - ${showLocal(range.endLocal)}`;
+              })()}
+            </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Phòng thi</dt>

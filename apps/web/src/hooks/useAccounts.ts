@@ -6,12 +6,14 @@ import {
   getAccount,
   createAccount,
   updateAccount,
+  changeAccountPassword,
   deleteAccount,
   deactivateAccount,
   reactivateAccount,
   type SearchAccountsParams,
   type CreateAccountInput,
   type UpdateAccountInput,
+  type ChangePasswordInput,
 } from '@/lib/api/accounts';
 
 const ACCOUNTS_QUERY_KEY = 'accounts';
@@ -53,6 +55,13 @@ export function useUpdateAccount() {
     mutationFn: ({ id, values }: { id: string; values: UpdateAccountInput }) =>
       updateAccount(id, values),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [ACCOUNTS_QUERY_KEY] }),
+  });
+}
+
+export function useChangeAccountPassword() {
+  return useMutation({
+    mutationFn: ({ id, values }: { id: string; values: ChangePasswordInput }) =>
+      changeAccountPassword(id, values),
   });
 }
 

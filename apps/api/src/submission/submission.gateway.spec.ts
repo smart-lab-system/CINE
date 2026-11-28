@@ -43,6 +43,7 @@ function joinedSocket(
       homeClassId: '44444444-4444-4444-8444-444444444444',
       homeTeacherId: '55555555-5555-4555-8555-555555555555',
       machineName: null,
+      seatLabel: '',
       ...data,
     },
   } as unknown as Socket;
@@ -133,6 +134,7 @@ describe('SubmissionGateway — identity', () => {
       homeClassId: '44444444-4444-4444-8444-444444444444',
       homeTeacherId: '55555555-5555-4555-8555-555555555555',
       machineName: null,
+      seatLabel: '',
     });
   });
 

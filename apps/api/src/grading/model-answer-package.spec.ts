@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import {
   extractModelAnswerZip,
+  isArchivePackageKind,
   isPdfFilename,
   packageKindFromFilename,
   sanitizeZipEntryPath,
@@ -10,8 +11,13 @@ describe('model-answer-package', () => {
   it('suy kind từ tên file', () => {
     expect(packageKindFromFilename('dap-an.zip')).toBe('zip');
     expect(packageKindFromFilename('DAP-AN.ZIP')).toBe('zip');
+    expect(packageKindFromFilename('dap-an.rar')).toBe('rar');
+    expect(packageKindFromFilename('DAP-AN.RAR')).toBe('rar');
     expect(packageKindFromFilename('dap-an.pdf')).toBe('file');
     expect(packageKindFromFilename(null)).toBe('file');
+    expect(isArchivePackageKind('zip')).toBe(true);
+    expect(isArchivePackageKind('rar')).toBe(true);
+    expect(isArchivePackageKind('file')).toBe(false);
   });
 
   it('nhận diện PDF', () => {

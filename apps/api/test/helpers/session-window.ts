@@ -18,14 +18,25 @@
 let cursor = 0;
 
 const HOUR_MS = 60 * 60 * 1000;
-/** Mỗi phiên sau lùi thêm 2 giờ, phiên dài 1 giờ → hở 1 giờ. Rộng hơn hẳn
- *  ngưỡng 30 phút, và vẫn đủ gần để đọc log không nhức mắt. */
+/** Mỗi phiên sau lùi thêm 2 giờ; phiên dài 90 phút → hở ≥ 30 phút. */
 const STRIDE_MS = 2 * HOUR_MS;
+/** Khớp `durationMinutes` / EXAM_DURATION_OPTIONS trên DTO + service. */
+const EXAM_DURATION_MS = 90 * 60 * 1000;
 
 export interface SessionWindow {
   startTime: string;
   endTime: string;
+  /** Metadata tiết (DTO bắt buộc). Tiết phủ duration; giờ tường e2e không cần khớp phút tiết. */
+  startPeriod: number;
+  endPeriod: number;
+  durationMinutes: number;
 }
+
+const DEFAULT_PERIODS = {
+  startPeriod: 1,
+  endPeriod: 2,
+  durationMinutes: 90,
+} as const;
 
 /**
  * Phiên ĐANG diễn ra — nhưng chỉ LẦN GỌI ĐẦU trong một spec mới thật sự đang
@@ -41,7 +52,8 @@ export function liveSessionWindow(): SessionWindow {
   const start = n === 0 ? Date.now() - 60_000 : Date.now() + n * STRIDE_MS;
   return {
     startTime: new Date(start).toISOString(),
-    endTime: new Date(start + HOUR_MS).toISOString(),
+    endTime: new Date(start + EXAM_DURATION_MS).toISOString(),
+    ...DEFAULT_PERIODS,
   };
 }
 
@@ -53,7 +65,8 @@ export function upcomingSessionWindow(): SessionWindow {
   const start = Date.now() + HOUR_MS + n * STRIDE_MS;
   return {
     startTime: new Date(start).toISOString(),
-    endTime: new Date(start + HOUR_MS).toISOString(),
+    endTime: new Date(start + EXAM_DURATION_MS).toISOString(),
+    ...DEFAULT_PERIODS,
   };
 }
 
@@ -74,7 +87,8 @@ export function concurrentLiveWindow(): SessionWindow {
   const start = Date.now() - 60_000;
   return {
     startTime: new Date(start).toISOString(),
-    endTime: new Date(start + HOUR_MS).toISOString(),
+    endTime: new Date(start + EXAM_DURATION_MS).toISOString(),
+    ...DEFAULT_PERIODS,
   };
 }
 

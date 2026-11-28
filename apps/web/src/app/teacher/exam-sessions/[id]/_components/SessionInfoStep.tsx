@@ -16,9 +16,21 @@ import {
   EXAM_TYPE_LABELS,
   getDisplaySessionStatus,
 } from '@/lib/exam-session-display';
+import {
+  EXAM_DURATION_OPTIONS,
+  MAX_SCHOOL_PERIOD,
+  MIN_SCHOOL_PERIOD,
+  periodSelectLabel,
+  scheduleFromPeriodsAndDuration,
+} from '@/lib/school-periods';
 import { useStatusClock } from '@/lib/use-status-clock';
 import { useSetupDraft } from './SetupDraftProvider';
 import type { SetupInfoDraft } from './setup-draft';
+
+const PERIOD_OPTIONS = Array.from(
+  { length: MAX_SCHOOL_PERIOD - MIN_SCHOOL_PERIOD + 1 },
+  (_, i) => MIN_SCHOOL_PERIOD + i,
+);
 
 export function SessionInfoStep({
   session,
@@ -67,6 +79,15 @@ export function SessionInfoStep({
   );
   const reason = setup.errorStep === 'info' ? setup.blockReason : null;
   const apiMessage = setup.apiError?.step === 'info' ? setup.apiError.message : null;
+  const schedulePreview =
+    shown.examDate && shown.startPeriod && shown.endPeriod && shown.durationMinutes
+      ? scheduleFromPeriodsAndDuration(
+          shown.examDate,
+          shown.startPeriod,
+          shown.endPeriod,
+          shown.durationMinutes,
+        )
+      : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -147,26 +168,82 @@ export function SessionInfoStep({
 
       <div className="flex flex-col gap-2">
         <p className="text-base font-semibold">Thời gian</p>
+        <FormField id="setup-exam-date" label="Ngày thi">
+          <Input
+            id="setup-exam-date"
+            type="date"
+            value={shown.examDate}
+            disabled={!mutable}
+            onChange={(event) => update({ examDate: event.target.value })}
+          />
+        </FormField>
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField id="setup-start" label="Bắt đầu">
-            <Input
-              id="setup-start"
-              type="datetime-local"
-              value={shown.startLocal}
+          <FormField id="setup-start-period" label="Tiết bắt đầu">
+            <select
+              id="setup-start-period"
+              aria-label="Tiết bắt đầu"
               disabled={!mutable}
-              onChange={(event) => update({ startLocal: event.target.value })}
-            />
+              value={shown.startPeriod || ''}
+              onChange={(event) =>
+                update({ startPeriod: event.target.value ? Number(event.target.value) : 0 })
+              }
+              className="h-12 rounded-md border border-input bg-surface px-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">Chọn tiết bắt đầu</option>
+              {PERIOD_OPTIONS.map((period) => (
+                <option key={period} value={period}>
+                  {periodSelectLabel(period)}
+                </option>
+              ))}
+            </select>
           </FormField>
-          <FormField id="setup-end" label="Kết thúc">
-            <Input
-              id="setup-end"
-              type="datetime-local"
-              value={shown.endLocal}
+          <FormField id="setup-end-period" label="Tiết kết thúc">
+            <select
+              id="setup-end-period"
+              aria-label="Tiết kết thúc"
               disabled={!mutable}
-              onChange={(event) => update({ endLocal: event.target.value })}
-            />
+              value={shown.endPeriod || ''}
+              onChange={(event) =>
+                update({ endPeriod: event.target.value ? Number(event.target.value) : 0 })
+              }
+              className="h-12 rounded-md border border-input bg-surface px-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="">Chọn tiết kết thúc</option>
+              {PERIOD_OPTIONS.map((period) => (
+                <option key={period} value={period}>
+                  {periodSelectLabel(period)}
+                </option>
+              ))}
+            </select>
           </FormField>
         </div>
+        <FormField id="setup-duration" label="Thời lượng thi">
+          <select
+            id="setup-duration"
+            aria-label="Thời lượng thi"
+            disabled={!mutable}
+            value={shown.durationMinutes || ''}
+            onChange={(event) =>
+              update({
+                durationMinutes: event.target.value ? Number(event.target.value) : 0,
+              })
+            }
+            className="h-12 rounded-md border border-input bg-surface px-3 text-base disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="">Chọn thời lượng</option>
+            {EXAM_DURATION_OPTIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes} phút
+              </option>
+            ))}
+          </select>
+        </FormField>
+        {schedulePreview ? (
+          <p className="text-small text-muted-foreground">
+            Giờ làm bài: {schedulePreview.startLocal.replace('T', ' ')} -{' '}
+            {schedulePreview.endLocal.replace('T', ' ')}
+          </p>
+        ) : null}
         {reason ? (
           <Alert variant="destructive">
             <AlertDescription>{reason}</AlertDescription>

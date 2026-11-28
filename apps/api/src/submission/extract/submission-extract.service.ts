@@ -249,8 +249,8 @@ export class SubmissionExtractService {
     const rendered = renderFilename(pattern, {
       studentMssv: row.studentMssv,
       studentName: row.studentNameInput ?? '',
-      roomName: row.examSession?.roomName ?? '',
-      machineName: null,
+      seatLabel: '',
+      roomLabel: row.examSession?.roomName ?? '',
     });
     const base = rendered.replace(/\\/g, '/').split('/').pop() || 'submission.bin';
     try {

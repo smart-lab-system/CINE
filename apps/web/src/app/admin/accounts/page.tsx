@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Pencil, Plus, Search, Trash2, UserCheck, UserX, Users } from 'lucide-react';
+import { KeyRound, Pencil, Plus, Search, Trash2, UserCheck, UserX, Users } from 'lucide-react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,6 +14,7 @@ import {
   useAccounts,
   useCreateAccount,
   useUpdateAccount,
+  useChangeAccountPassword,
   useDeleteAccount,
   useToggleAccountActive,
 } from '@/hooks/useAccounts';
@@ -26,6 +27,10 @@ import {
 } from '@/lib/account-roles';
 import { AccountForm, AccountFormValues } from '@/components/accounts/account-form';
 import { EditAccountForm, EditAccountFormValues } from '@/components/accounts/edit-account-form';
+import {
+  ChangePasswordForm,
+  ChangePasswordFormValues,
+} from '@/components/accounts/change-password-form';
 import { EmptyState } from '@/components/layout/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { ListPaginationBar } from '@/components/list-pagination-bar';
@@ -101,6 +106,7 @@ function AccountsPageContent() {
   );
   const [createOpen, setCreateOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountView | null>(null);
+  const [passwordAccount, setPasswordAccount] = useState<AccountView | null>(null);
   // Was a native window.confirm(). A browser dialog can't be styled, can't
   // name the consequence, and looks like a page error rather than part of
   // the product - for a destructive action that's exactly the wrong tone.
@@ -136,6 +142,7 @@ function AccountsPageContent() {
 
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
+  const changePassword = useChangeAccountPassword();
   const deleteAccount = useDeleteAccount();
   const toggleActive = useToggleAccountActive();
 
@@ -173,7 +180,22 @@ function AccountsPageContent() {
           toast.success('Đã cập nhật tài khoản');
           setEditingAccount(null);
         },
-        onError: () => toast.error('Không cập nhật được tài khoản.'),
+        onError: () =>
+          toast.error('Không cập nhật được tài khoản. Email có thể đã được dùng.'),
+      },
+    );
+  }
+
+  function handleChangePassword(values: ChangePasswordFormValues) {
+    if (!passwordAccount) return;
+    changePassword.mutate(
+      { id: passwordAccount.id, values: { password: values.password } },
+      {
+        onSuccess: () => {
+          toast.success(`Đã đổi mật khẩu cho ${passwordAccount.name}`);
+          setPasswordAccount(null);
+        },
+        onError: () => toast.error('Không đổi được mật khẩu.'),
       },
     );
   }
@@ -261,6 +283,16 @@ function AccountsPageContent() {
             title="Sửa tài khoản"
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setPasswordAccount(row.original)}
+            aria-label={`Đổi mật khẩu ${row.original.name}`}
+            title="Đổi mật khẩu"
+          >
+            <KeyRound className="h-4 w-4" aria-hidden="true" />
           </Button>
           {/* Trước nút Xóa: với hầu hết tài khoản đã đi vào việc, đây là
               thao tác DUY NHẤT thực sự chạy được - Xóa sẽ trả 409 vì FK
@@ -494,17 +526,43 @@ function AccountsPageContent() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Sửa tài khoản</DialogTitle>
-            <DialogDescription>{editingAccount?.email}</DialogDescription>
+            <DialogDescription>
+              Cập nhật họ tên, email hoặc vai trò. Đổi mật khẩu dùng thao tác riêng trên hàng.
+            </DialogDescription>
           </DialogHeader>
           {editingAccount && (
             <EditAccountForm
               defaultValues={{
                 name: editingAccount.name,
+                email: editingAccount.email,
                 role: editingAccount.role as EditAccountFormValues['role'],
               }}
               onSubmit={handleUpdate}
               onCancel={() => setEditingAccount(null)}
               submitting={updateAccount.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={passwordAccount !== null}
+        onOpenChange={(open) => !open && setPasswordAccount(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Đổi mật khẩu</DialogTitle>
+            <DialogDescription>
+              Đặt mật khẩu mới cho{' '}
+              <strong className="font-semibold text-foreground">{passwordAccount?.name}</strong> (
+              {passwordAccount?.email}).
+            </DialogDescription>
+          </DialogHeader>
+          {passwordAccount && (
+            <ChangePasswordForm
+              onSubmit={handleChangePassword}
+              onCancel={() => setPasswordAccount(null)}
+              submitting={changePassword.isPending}
             />
           )}
         </DialogContent>

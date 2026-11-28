@@ -111,6 +111,22 @@ export interface paths {
         patch: operations["AccountsController_update"];
         trace?: never;
     };
+    "/accounts/{id}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AccountsController_changePassword"];
+        trace?: never;
+    };
     "/accounts/{id}/deactivate": {
         parameters: {
             query?: never;
@@ -2484,6 +2500,9 @@ export interface components {
             /** @enum {string} */
             role?: "admin" | "teacher";
         };
+        ChangePasswordDto: {
+            password: string;
+        };
         RequiredFilenameDto: {
             filename: string;
             /** @enum {string} */
@@ -2504,6 +2523,12 @@ export interface components {
             examType: "TK" | "GK" | "CK";
             startTime: string;
             endTime: string;
+            /** Tiết bắt đầu 1-16 */
+            startPeriod: number;
+            /** Tiết kết thúc 1-16 */
+            endPeriod: number;
+            /** Thời gian thi (phút): 45/60/75/90 */
+            durationMinutes: number;
             requiredFilenames?: components["schemas"]["RequiredFilenameDto"][];
         };
         RequiredDeliverableResponseDto: {
@@ -2530,6 +2555,12 @@ export interface components {
             startTime: string;
             /** Format: date-time */
             endTime: string;
+            /** Tiết 1-16; null = phiên cũ */
+            startPeriod: number | null;
+            /** Tiết 1-16; null = phiên cũ */
+            endPeriod: number | null;
+            /** Thời gian thi (phút); null = phiên cũ */
+            durationMinutes: number | null;
             status: Record<string, never>;
             /** Format: date-time */
             completedAt: string | null;
@@ -2550,6 +2581,9 @@ export interface components {
             startTime?: string;
             /** Format: date-time */
             endTime?: string;
+            startPeriod?: number;
+            endPeriod?: number;
+            durationMinutes?: number;
         };
         ReplaceRequiredDeliverablesDto: {
             requiredFilenames: components["schemas"]["RequiredFilenameDto"][];
@@ -2677,6 +2711,9 @@ export interface components {
             startTime: string;
             /** Format: date-time */
             endTime: string;
+            startPeriod?: number | null;
+            endPeriod?: number | null;
+            durationMinutes?: number | null;
             submissionRule: Record<string, never>;
             status: Record<string, never>;
             /** Format: date-time */
@@ -3558,6 +3595,29 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>;
                 };
+            };
+        };
+    };
+    AccountsController_changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordDto"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -76,6 +76,18 @@ describe('AccountsService', () => {
     });
   });
 
+  it('update() can change email', async () => {
+    const { service, repo, existing } = createHarness();
+
+    await service.update('account-1', { email: 'new@example.com' });
+
+    expect(repo.update).toHaveBeenCalledWith('account-1', {
+      name: existing.name,
+      email: 'new@example.com',
+      role: existing.role,
+    });
+  });
+
   it('update() throws NotFoundException for a missing account', async () => {
     const { service } = createHarness({
       findOne: jest.fn().mockResolvedValue(null),
@@ -84,6 +96,29 @@ describe('AccountsService', () => {
     await expect(service.update('missing', { name: 'X' })).rejects.toThrow(
       NotFoundException,
     );
+  });
+
+  it('changePassword() stores an argon2 hash, never the plaintext', async () => {
+    const { service, repo } = createHarness();
+
+    await service.changePassword('account-1', { password: 'new-horse-battery' });
+
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    const [, patch] = repo.update.mock.calls[0];
+    expect(patch.passwordHash).toBeDefined();
+    expect(patch.passwordHash).not.toBe('new-horse-battery');
+    expect(patch.passwordHash.startsWith('$argon2id$')).toBe(true);
+  });
+
+  it('changePassword() throws NotFoundException for a missing account', async () => {
+    const { service, repo } = createHarness({
+      findOne: jest.fn().mockResolvedValue(null),
+    });
+
+    await expect(
+      service.changePassword('missing', { password: 'new-horse-battery' }),
+    ).rejects.toThrow(NotFoundException);
+    expect(repo.update).not.toHaveBeenCalled();
   });
 
   it('remove() hard-deletes the row once it is confirmed to exist', async () => {

@@ -164,8 +164,8 @@ export class AuditReviewService {
     const fileName = renderFilename(row.required_filename as string, {
       studentMssv: row.student_mssv as string,
       studentName: (row.student_name_input as string) ?? '',
-      roomName: (row.room_name as string) ?? '',
-      machineName: null,
+      seatLabel: '',
+      roomLabel: (row.room_name as string) ?? '',
     });
     const { downloadUrl } = await this.storage.generateDownloadUrl(row.storage_key as string, {
       filename: fileName,

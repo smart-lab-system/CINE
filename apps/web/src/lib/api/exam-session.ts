@@ -37,6 +37,12 @@ export interface CreateExamSessionInput {
   startTime: string;
   /** ISO 8601, must be after `startTime`. */
   endTime: string;
+  /** Tiết bắt đầu 1-16. */
+  startPeriod: number;
+  /** Tiết kết thúc 1-16 (≥ startPeriod), suy từ start + duration. */
+  endPeriod: number;
+  /** Thời gian thi (phút): 45 / 60 / 75 / 90. */
+  durationMinutes: number;
   /**
    * Deprecated trên create (create-slim) - khai qua
    * `PUT /exam-sessions/:id/required-deliverables`. Optional / bỏ trống = 0 file.
@@ -87,6 +93,12 @@ export interface ExamSessionResponse {
   examType: ExamType;
   startTime: string;
   endTime: string;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  startPeriod: number | null;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  endPeriod: number | null;
+  /** Thời gian thi (phút): 45/60/75/90; null = phiên cũ. */
+  durationMinutes: number | null;
   status: string;
   /**
    * Khi phiên rời `collecting`, và ai chốt.
@@ -132,6 +144,12 @@ export interface ExamSessionListItem {
   examType: ExamType;
   startTime: string;
   endTime: string;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  startPeriod?: number | null;
+  /** Tiết 1-16; null = phiên cũ chưa gắn tiết. */
+  endPeriod?: number | null;
+  /** Thời gian thi (phút): 45/60/75/90; null = phiên cũ. */
+  durationMinutes?: number | null;
   status: string;
   /** true nếu đã có session_roster (sau open / thêm tay). */
   rosterFrozen?: boolean;
@@ -317,6 +335,9 @@ export async function updateExamSessionSchedule(
     roomName?: string;
     startTime?: string;
     endTime?: string;
+    startPeriod?: number;
+    endPeriod?: number;
+    durationMinutes?: number;
   },
 ): Promise<ExamSessionResponse> {
   return examFetch(`/exam-sessions/${id}`, {

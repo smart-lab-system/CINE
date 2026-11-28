@@ -39,15 +39,16 @@ describe('Submission overview — attendance tiers (e2e)', () => {
    */
   let sessionIndex = 0;
   function nextWindow() {
-    // Bước 50 phút — xem ghi chú cùng chỗ ở
-    // submission-overview-makeup-search.e2e-spec.ts: khe 5 phút của bước cũ
-    // vi phạm `ex_exam_session_teacher_gap` (>= 30 phút).
-    const offsetMs = (5 + 50 * sessionIndex) * 60_000;
+    // Bước 80 phút — phiên 45 phút + khe >= 30 (teacher_gap).
+    const offsetMs = (5 + 80 * sessionIndex) * 60_000;
     sessionIndex += 1;
     const start = Date.now() + offsetMs;
     return {
       startTime: new Date(start).toISOString(),
-      endTime: new Date(start + 15 * 60_000).toISOString(),
+      endTime: new Date(start + 45 * 60_000).toISOString(),
+      startPeriod: 1,
+      endPeriod: 2,
+      durationMinutes: 45,
     };
   }
 

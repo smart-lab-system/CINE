@@ -13,8 +13,10 @@ const server: SetupServerBaseline = {
   info: {
     examType: 'TK',
     roomId: 'room-1',
-    startLocal: '2026-11-01T08:00',
-    endLocal: '2026-11-01T10:00',
+    examDate: '2026-11-01',
+    startPeriod: 1,
+    endPeriod: 3,
+    durationMinutes: 90,
   },
   folder: { requiredFilenames: [{ value: 'Bai.docx', deliverableType: 'document' }] },
   rubricId: null,

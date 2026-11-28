@@ -48,8 +48,8 @@ describe('Submission overview (e2e)', () => {
     start.setUTCDate(start.getUTCDate() + windowCursor);
     start.setUTCHours(8, 0, 0, 0);
     const end = new Date(start);
-    end.setUTCHours(10);
-    return { startTime: start.toISOString(), endTime: end.toISOString() };
+    end.setUTCHours(9, 30);
+    return { startTime: start.toISOString(), endTime: end.toISOString(), startPeriod: 1, endPeriod: 2, durationMinutes: 90 };
   }
 
   async function createSession(

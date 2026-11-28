@@ -7,87 +7,82 @@ import {
 
 const VALID_UUID = '11111111-1111-4111-8111-111111111111';
 
-function scheduleBase(startTime: string, endTime: string) {
+function scheduleBase(
+  examDate: string,
+  startPeriod: number,
+  endPeriod: number,
+  durationMinutes: number,
+) {
   return {
     name: 'Kiểm tra giữa kỳ',
     classId: VALID_UUID,
     roomName: 'P.A101',
     semesterName: 'HK1 2026-2027',
     examType: 'GK' as const,
-    startTime,
-    endTime,
+    examDate,
+    startPeriod,
+    endPeriod,
+    durationMinutes,
   };
 }
 
-// QA-reported gap: nothing stopped a teacher from creating a session a few
-// seconds long. Mirrors the backend's HasMinimumDurationConstraint.
-describe('createExamSessionSchema - minimum duration', () => {
-  it('rejects a session shorter than 15 minutes, pointing at endTime', () => {
-    const start = futureStart();
-    const end = new Date(start.getTime() + 5 * 60_000);
+function futureExamDate(daysAhead = 2): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysAhead);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
-    const result = createExamSessionSchema.safeParse(
-      scheduleBase(toLocalInput(start), toLocalInput(end)),
-    );
+function pastExamDate(daysAgo = 2): string {
+  return futureExamDate(-daysAgo);
+}
 
+describe('createExamSessionSchema - duration', () => {
+  it('từ chối thời lượng không thuộc 45/60/75/90', () => {
+    const result = createExamSessionSchema.safeParse(scheduleBase(futureExamDate(), 1, 3, 50));
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find((i) => i.path.join('.') === 'endTime');
-      expect(issue?.message).toBe('Phiên thi phải kéo dài ít nhất 15 phút');
+      expect(result.error.issues.some((i) => i.path.join('.') === 'durationMinutes')).toBe(
+        true,
+      );
     }
   });
 
-  it('accepts a session exactly 15 minutes long - the floor is inclusive', () => {
-    const start = futureStart();
-    const end = new Date(start.getTime() + 15 * 60_000);
+  it('từ chối tiết kết thúc trước tiết bắt đầu', () => {
+    const result = createExamSessionSchema.safeParse(scheduleBase(futureExamDate(), 5, 2, 90));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((i) => i.message)).toContain(
+        'Tiết kết thúc phải từ tiết bắt đầu trở đi',
+      );
+    }
+  });
 
-    const result = createExamSessionSchema.safeParse(
-      scheduleBase(toLocalInput(start), toLocalInput(end)),
-    );
-
+  it('nhận tiết 1-3 + 90 phút', () => {
+    const result = createExamSessionSchema.safeParse(scheduleBase(futureExamDate(), 1, 3, 90));
     expect(result.success).toBe(true);
   });
 
-  it('does not stack the "too short" message on top of an invalid ordering', () => {
-    const start = futureStart();
-    const end = new Date(start.getTime() - 5 * 60_000);
-
-    const result = createExamSessionSchema.safeParse(
-      scheduleBase(toLocalInput(start), toLocalInput(end)),
-    );
-
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      const messages = result.error.issues.map((i) => i.message);
-      expect(messages).toContain('Thời gian kết thúc phải sau thời gian bắt đầu');
-      expect(messages).not.toContain('Phiên thi phải kéo dài ít nhất 15 phút');
+  it('nhận 45/60/75 phút với khung tiết đủ rộng', () => {
+    for (const minutes of [45, 60, 75] as const) {
+      expect(
+        createExamSessionSchema.safeParse(scheduleBase(futureExamDate(), 1, 3, minutes)).success,
+      ).toBe(true);
     }
   });
 });
 
 describe('createExamSessionSchema - backdating', () => {
-  it('accepts a session declared a few minutes after it started', () => {
-    const start = new Date(Date.now() - 10 * 60_000);
-    const end = new Date(Date.now() + 60 * 60_000);
-
-    const result = createExamSessionSchema.safeParse(
-      scheduleBase(toLocalInput(start), toLocalInput(end)),
-    );
-
+  it('nhận ngày thi trong tương lai', () => {
+    const result = createExamSessionSchema.safeParse(scheduleBase(futureExamDate(3), 7, 9, 90));
     expect(result.success).toBe(true);
   });
 
-  it('rejects a session backdated past the grace window, pointing at startTime', () => {
-    const start = new Date(Date.now() - 45 * 60_000);
-    const end = new Date(Date.now() + 60 * 60_000);
-
-    const result = createExamSessionSchema.safeParse(
-      scheduleBase(toLocalInput(start), toLocalInput(end)),
-    );
-
+  it('từ chối ngày thi quá khứ ngoài cửa sổ 30 phút', () => {
+    const result = createExamSessionSchema.safeParse(scheduleBase(pastExamDate(2), 1, 3, 90));
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find((i) => i.path.join('.') === 'startTime');
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'examDate');
       expect(issue?.message).toBe(
         'Thời gian bắt đầu không được sớm hơn hiện tại quá 30 phút',
       );
@@ -97,11 +92,7 @@ describe('createExamSessionSchema - backdating', () => {
 
 describe('createExamSessionSchema - create-slim (không filenames/rubric)', () => {
   it('hợp lệ chỉ với lịch + danh tính', () => {
-    const start = futureStart();
-    const end = new Date(start.getTime() + 60 * 60_000);
-    const result = createExamSessionSchema.safeParse(
-      scheduleBase(toLocalInput(start), toLocalInput(end)),
-    );
+    const result = createExamSessionSchema.safeParse(scheduleBase(futureExamDate(), 1, 3, 90));
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data).not.toHaveProperty('requiredFilenames');
@@ -278,14 +269,3 @@ describe('describeCreateError', () => {
   });
 });
 
-function futureStart(): Date {
-  const start = new Date();
-  start.setDate(start.getDate() + 1);
-  start.setHours(8, 0, 0, 0);
-  return start;
-}
-
-function toLocalInput(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}

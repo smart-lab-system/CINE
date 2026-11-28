@@ -9,10 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ACCOUNT_ROLE_LABELS, ACCOUNT_ROLE_OPTIONS } from '@/lib/account-roles';
 
-// Email isn't editable here, matching the previous form's scope (username
-// wasn't editable either) - keep the edit surface small.
 const editAccountFormSchema = z.object({
   name: z.string().min(1, 'Vui lòng nhập họ tên').max(150),
+  email: z.string().email('Email không hợp lệ'),
   role: z.enum(ACCOUNT_ROLE_OPTIONS),
 });
 
@@ -43,6 +42,16 @@ export function EditAccountForm({
     <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
       <FormField id="edit-name" label="Họ tên" error={errors.name?.message}>
         <Input id="edit-name" invalid={Boolean(errors.name)} {...register('name')} />
+      </FormField>
+
+      <FormField id="edit-email" label="Email" error={errors.email?.message}>
+        <Input
+          id="edit-email"
+          type="email"
+          autoComplete="off"
+          invalid={Boolean(errors.email)}
+          {...register('email')}
+        />
       </FormField>
 
       <FormField

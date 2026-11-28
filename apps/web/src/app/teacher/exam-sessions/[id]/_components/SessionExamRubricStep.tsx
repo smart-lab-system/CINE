@@ -62,6 +62,7 @@ export function SessionExamRubricStep({
           examSessionId={sessionId}
           releaseAt={releaseAt}
           canEdit={materialsEditable}
+          courseId={courseId}
           onFileSelected={(selected) =>
             setup.patchDraft({ materialsFilePending: selected || undefined })
           }

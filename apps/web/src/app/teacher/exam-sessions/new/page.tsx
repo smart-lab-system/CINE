@@ -19,9 +19,17 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EXAM_TYPE_LABELS } from '@/lib/exam-session-display';
 import {
+  EXAM_DURATION_OPTIONS,
+  MAX_SCHOOL_PERIOD,
+  MIN_SCHOOL_PERIOD,
+  periodSelectLabel,
+  scheduleFromPeriodsAndDuration,
+} from '@/lib/school-periods';
+import {
   createExamSessionSchema,
   describeCreateError,
   EXAM_TYPES,
+  formScheduleToIso,
   type CreateExamSessionFormValues,
 } from './schema';
 
@@ -38,9 +46,17 @@ const EMPTY_FORM: CreateExamSessionFormValues = {
   // resolver still rejects submit until the user consciously picks one;
   // this cast only tells RHF what shape the default *starts* as.
   examType: '' as CreateExamSessionFormValues['examType'],
-  startTime: '',
-  endTime: '',
+  examDate: '',
+  // 0 = chưa chọn; Zod coerce + min(1) / enum từ chối submit.
+  startPeriod: 0 as CreateExamSessionFormValues['startPeriod'],
+  endPeriod: 0 as CreateExamSessionFormValues['endPeriod'],
+  durationMinutes: 0 as CreateExamSessionFormValues['durationMinutes'],
 };
+
+const PERIOD_OPTIONS = Array.from(
+  { length: MAX_SCHOOL_PERIOD - MIN_SCHOOL_PERIOD + 1 },
+  (_, i) => MIN_SCHOOL_PERIOD + i,
+);
 
 /** `Loại kỳ thi Môn MãLớp Học kỳ` - chỉ dựng khi đủ lớp (có HK) + loại kỳ. */
 function buildSessionName(parts: {
@@ -84,6 +100,20 @@ export default function NewExamSessionPage() {
 
   const classId = form.watch('classId');
   const examType = form.watch('examType');
+  const examDate = form.watch('examDate');
+  const startPeriod = form.watch('startPeriod');
+  const endPeriod = form.watch('endPeriod');
+  const durationMinutes = form.watch('durationMinutes');
+
+  const schedulePreview = useMemo(() => {
+    if (!examDate || !startPeriod || !endPeriod || !durationMinutes) return null;
+    return scheduleFromPeriodsAndDuration(
+      examDate,
+      Number(startPeriod),
+      Number(endPeriod),
+      Number(durationMinutes),
+    );
+  }, [examDate, startPeriod, endPeriod, durationMinutes]);
 
   const selectedClass = classes.data?.find((c) => c.id === classId);
 
@@ -147,6 +177,11 @@ export default function NewExamSessionPage() {
   const noRoster = selectedClass?.studentCount === 0;
 
   function onSubmit(values: CreateExamSessionFormValues) {
+    const iso = formScheduleToIso(values);
+    if (!iso) {
+      toast.error('Không map được ngày thi và tiết - kiểm tra lại.');
+      return;
+    }
     createExamSession.mutate(
       {
         name: values.name,
@@ -159,8 +194,11 @@ export default function NewExamSessionPage() {
           ? { semesterId: values.semesterId }
           : { semesterName: values.semesterName?.trim() || undefined }),
         examType: values.examType,
-        startTime: new Date(values.startTime).toISOString(),
-        endTime: new Date(values.endTime).toISOString(),
+        startTime: iso.startTime,
+        endTime: iso.endTime,
+        startPeriod: values.startPeriod,
+        endPeriod: values.endPeriod,
+        durationMinutes: values.durationMinutes,
       },
       {
         onSuccess: (session) => setCreated({ id: session.id, code: session.code }),
@@ -452,33 +490,111 @@ export default function NewExamSessionPage() {
                 </div>
               </FormField>
 
+              <FormField
+                id="exam-session-date"
+                label="Ngày thi"
+                error={form.formState.errors.examDate?.message}
+              >
+                <Input
+                  id="exam-session-date"
+                  type="date"
+                  invalid={Boolean(form.formState.errors.examDate)}
+                  {...form.register('examDate')}
+                />
+              </FormField>
+
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField
-                  id="exam-session-start-time"
-                  label="Thời gian bắt đầu"
-                  error={form.formState.errors.startTime?.message}
+                  id="exam-session-start-period"
+                  label="Tiết bắt đầu"
+                  error={form.formState.errors.startPeriod?.message}
                 >
-                  <Input
-                    id="exam-session-start-time"
-                    type="datetime-local"
-                    invalid={Boolean(form.formState.errors.startTime)}
-                    {...form.register('startTime')}
+                  <Controller
+                    control={form.control}
+                    name="startPeriod"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ? String(field.value) : ''}
+                        onValueChange={(value) => field.onChange(Number(value))}
+                      >
+                        <SelectTrigger id="exam-session-start-period">
+                          <SelectValue placeholder="Chọn tiết bắt đầu" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERIOD_OPTIONS.map((period) => (
+                            <SelectItem key={period} value={String(period)}>
+                              {periodSelectLabel(period)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   />
                 </FormField>
 
                 <FormField
-                  id="exam-session-end-time"
-                  label="Thời gian kết thúc"
-                  error={form.formState.errors.endTime?.message}
+                  id="exam-session-end-period"
+                  label="Tiết kết thúc"
+                  error={form.formState.errors.endPeriod?.message}
                 >
-                  <Input
-                    id="exam-session-end-time"
-                    type="datetime-local"
-                    invalid={Boolean(form.formState.errors.endTime)}
-                    {...form.register('endTime')}
+                  <Controller
+                    control={form.control}
+                    name="endPeriod"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ? String(field.value) : ''}
+                        onValueChange={(value) => field.onChange(Number(value))}
+                      >
+                        <SelectTrigger id="exam-session-end-period">
+                          <SelectValue placeholder="Chọn tiết kết thúc" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERIOD_OPTIONS.map((period) => (
+                            <SelectItem key={period} value={String(period)}>
+                              {periodSelectLabel(period)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   />
                 </FormField>
               </div>
+
+              <FormField
+                id="exam-session-duration"
+                label="Thời lượng thi"
+                error={form.formState.errors.durationMinutes?.message}
+              >
+                <Controller
+                  control={form.control}
+                  name="durationMinutes"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value ? String(field.value) : ''}
+                      onValueChange={(value) => field.onChange(Number(value))}
+                    >
+                      <SelectTrigger id="exam-session-duration">
+                        <SelectValue placeholder="Chọn thời lượng" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EXAM_DURATION_OPTIONS.map((minutes) => (
+                          <SelectItem key={minutes} value={String(minutes)}>
+                            {minutes} phút
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </FormField>
+
+              {schedulePreview ? (
+                <p className="text-small text-muted-foreground">
+                  Giờ làm bài: {schedulePreview.startLocal.replace('T', ' ')} -{' '}
+                  {schedulePreview.endLocal.replace('T', ' ')}
+                </p>
+              ) : null}
 
               {createExamSession.isError && (
                 <Alert variant="destructive">

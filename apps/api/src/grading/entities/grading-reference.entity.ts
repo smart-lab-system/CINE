@@ -78,11 +78,11 @@ export class GradingReferenceEntity extends BaseEntity {
   modelAnswerFilename!: string | null;
 
   /**
-   * Gói đáp án mẫu: `file` (một tài liệu) hoặc `zip` (folder/zip đã chuẩn hoá).
+   * Gói đáp án mẫu: `file` (một tài liệu), `zip` / `rar` (gói nén đã chuẩn hoá).
    * Null khi chưa có file đáp án (chỉ ghi chú / mã nguồn).
    */
   @Column({ name: 'model_answer_package_kind', type: 'varchar', length: 8, nullable: true })
-  modelAnswerPackageKind!: 'file' | 'zip' | null;
+  modelAnswerPackageKind!: 'file' | 'zip' | 'rar' | null;
 
   /**
    * Lối vào rẻ nhất cho giảng viên: một câu, không cần file.

@@ -47,6 +47,7 @@ import {
   isExamOver,
 } from './exam-session.types';
 import { ScheduleConflictService } from './schedule-conflict.service';
+import { examScheduleCoherenceError } from './school-periods';
 import { SUBMISSION_GRACE_PERIOD_MS } from '../submission/submission.types';
 import {
   ensureDefaultProblem,
@@ -197,12 +198,25 @@ export class ExamSessionService {
     // session already holding it, and when — so the lecturer knows what to
     // change. Without it they get "This request conflicts with an existing
     // record" from PostgresExceptionFilter and no way to act on it.
+    const createStart = new Date(dto.startTime);
+    const createEnd = new Date(dto.endTime);
+    const createScheduleError = examScheduleCoherenceError(
+      createStart,
+      createEnd,
+      dto.startPeriod,
+      dto.endPeriod,
+      dto.durationMinutes,
+    );
+    if (createScheduleError) {
+      throw new BadRequestException(createScheduleError);
+    }
+
     await this.scheduleConflicts.assertNone(
       roomSnap.roomName,
       klass.id,
       teacherId,
-      new Date(dto.startTime),
-      new Date(dto.endTime),
+      createStart,
+      createEnd,
     );
 
     for (let attempt = 1; attempt <= EXAM_SESSION_CODE_MAX_ATTEMPTS; attempt++) {
@@ -229,6 +243,9 @@ export class ExamSessionService {
               examType: dto.examType,
               startTime: new Date(dto.startTime),
               endTime: new Date(dto.endTime),
+              startPeriod: dto.startPeriod,
+              endPeriod: dto.endPeriod,
+              durationMinutes: dto.durationMinutes,
               // create → scheduled; "Mở phiên thi" freezes roster and
               // flips to active (spec 2026-10-18-exam-session-setup-edit-flow).
               // agent:join still requires active + frozen roster.
@@ -435,7 +452,10 @@ export class ExamSessionService {
       dto.roomId === undefined &&
       dto.roomName === undefined &&
       dto.startTime === undefined &&
-      dto.endTime === undefined
+      dto.endTime === undefined &&
+      dto.startPeriod === undefined &&
+      dto.endPeriod === undefined &&
+      dto.durationMinutes === undefined
     ) {
       return this.findByIdForOwner(session.id, session.teacherId);
     }
@@ -452,6 +472,38 @@ export class ExamSessionService {
     const endTime = dto.endTime ?? session.endTime;
     if (!(endTime > startTime)) {
       throw new BadRequestException('endTime phải sau startTime.');
+    }
+
+    const startPeriod =
+      dto.startPeriod !== undefined ? dto.startPeriod : session.startPeriod;
+    const endPeriod =
+      dto.endPeriod !== undefined ? dto.endPeriod : session.endPeriod;
+    const durationMinutes =
+      dto.durationMinutes !== undefined
+        ? dto.durationMinutes
+        : session.durationMinutes;
+
+    if (
+      startPeriod !== null &&
+      endPeriod !== null &&
+      durationMinutes !== null
+    ) {
+      const scheduleError = examScheduleCoherenceError(
+        startTime,
+        endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
+      );
+      if (scheduleError) {
+        throw new BadRequestException(scheduleError);
+      }
+    } else if (
+      startPeriod !== null &&
+      endPeriod !== null &&
+      endPeriod < startPeriod
+    ) {
+      throw new BadRequestException('endPeriod phải lớn hơn hoặc bằng startPeriod.');
     }
 
     if (!session.classId) {
@@ -475,6 +527,12 @@ export class ExamSessionService {
       roomName: roomSnap.roomName,
       startTime,
       endTime,
+      ...(dto.startPeriod !== undefined || dto.endPeriod !== undefined
+        ? { startPeriod, endPeriod }
+        : {}),
+      ...(dto.durationMinutes !== undefined
+        ? { durationMinutes: dto.durationMinutes }
+        : {}),
     });
 
     return this.findByIdForOwner(session.id, session.teacherId);
@@ -707,6 +765,9 @@ export class ExamSessionService {
       item.examType = session.examType;
       item.startTime = session.startTime;
       item.endTime = session.endTime;
+      item.startPeriod = session.startPeriod ?? null;
+      item.endPeriod = session.endPeriod ?? null;
+      item.durationMinutes = session.durationMinutes ?? null;
       item.status = session.status;
       item.rosterFrozen = frozenIds.has(session.id);
       return item;
@@ -1155,6 +1216,9 @@ export class ExamSessionService {
     dto.semesterName = session.semesterName;
     dto.startTime = session.startTime;
     dto.endTime = session.endTime;
+    dto.startPeriod = session.startPeriod ?? null;
+    dto.endPeriod = session.endPeriod ?? null;
+    dto.durationMinutes = session.durationMinutes ?? null;
     dto.status = session.status;
     dto.completedAt = session.completedAt ?? null;
     dto.completedBy = session.completedBy ?? null;

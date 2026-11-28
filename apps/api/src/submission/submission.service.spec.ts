@@ -36,6 +36,7 @@ const identity: AgentSocketIdentity = {
   homeClassId: HOME_CLASS_ID,
   homeTeacherId: HOME_TEACHER_ID,
   machineName: null,
+  seatLabel: '',
 };
 
 const confirmDto = {

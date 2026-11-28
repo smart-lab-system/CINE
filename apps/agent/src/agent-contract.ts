@@ -21,11 +21,10 @@ export interface AgentJoinPayload {
    */
   fullName?: string;
   /**
-   * This machine's own name, read from the OS.
+   * This machine's own hostname, read from the OS.
    *
-   * Fills {SOMAY} when the teacher declared a filename pattern that uses
-   * it. Read, never asked: CLAUDE.md forbids adding a step for the student,
-   * and a seat number they typed would be a value nobody could check.
+   * Server uses it to look up computer.location (Vị trí) for `{SOMAY}`, or
+   * as fallback with room code when location is empty. Read, never asked.
    */
   machineName?: string;
 }

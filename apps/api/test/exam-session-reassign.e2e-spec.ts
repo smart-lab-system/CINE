@@ -41,8 +41,8 @@ describe('ExamSession teacher reassignment (e2e)', () => {
     start.setUTCDate(start.getUTCDate() + windowCursor);
     start.setUTCHours(8, 0, 0, 0);
     const end = new Date(start);
-    end.setUTCHours(10);
-    return { startTime: start.toISOString(), endTime: end.toISOString() };
+    end.setUTCHours(9, 30);
+    return { startTime: start.toISOString(), endTime: end.toISOString(), startPeriod: 1, endPeriod: 2, durationMinutes: 90 };
   }
 
   async function makeAccount(prefix: string, role: 'admin' | 'teacher') {
@@ -62,7 +62,7 @@ describe('ExamSession teacher reassignment (e2e)', () => {
       [courseName, `Nhóm ${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, teacherId],
     );
 
-    const { startTime, endTime } = futureWindow();
+    const { startTime, endTime, startPeriod, endPeriod, durationMinutes } = futureWindow();
     const created = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${teacherToken}`)
@@ -74,6 +74,9 @@ describe('ExamSession teacher reassignment (e2e)', () => {
         examType: 'TK',
         startTime,
         endTime,
+        startPeriod,
+        endPeriod,
+        durationMinutes,
         requiredFilenames: ['Cau1.docx'],
       });
     expect(created.status).toBe(201);
