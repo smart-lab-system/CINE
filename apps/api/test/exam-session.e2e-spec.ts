@@ -522,12 +522,17 @@ describe('ExamSession (e2e)', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('rejects a session shorter than 15 minutes with 400 — QA-reported gap', async () => {
-    const startTime = new Date(Date.now() + 60_000).toISOString();
-    // 5 minutes — long enough to look plausible, still under the 15-minute
+  it('rejects a session shorter than 15 minutes with 400 - QA-reported gap', async () => {
+    // 5 minutes - long enough to look plausible, still under the 15-minute
     // floor, so this can't accidentally pass for the wrong reason (e.g.
     // colliding with the separate "end must be after start" rule).
+    // Periods/durationMinutes are DTO-required; wall-clock length is what
+    // HasMinimumDurationConstraint checks.
+    const startTime = new Date(Date.now() + 60_000).toISOString();
     const endTime = new Date(Date.now() + 60_000 + 5 * 60_000).toISOString();
+    const startPeriod = 1;
+    const endPeriod = 2;
+    const durationMinutes = 90;
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
@@ -555,15 +560,25 @@ describe('ExamSession (e2e)', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('accepts a session exactly 15 minutes long — the floor is inclusive', async () => {
-    const startTime = new Date(Date.now() + 60_000).toISOString();
-    const endTime = new Date(Date.now() + 60_000 + 15 * 60_000).toISOString();
+  it('accepts a session of 45 minutes (shortest durationMinutes, above the 15-minute floor)', async () => {
+    // Wall-clock floor is 15; create also requires durationMinutes in
+    // {45,60,75,90} matching end-start. 45 is the shortest creatable window.
+    windowCursor += 1;
+    const start = new Date();
+    start.setUTCDate(start.getUTCDate() + windowCursor);
+    start.setUTCHours(8, 0, 0, 0);
+    const end = new Date(start.getTime() + 45 * 60_000);
+    const startTime = start.toISOString();
+    const endTime = end.toISOString();
+    const startPeriod = 1;
+    const endPeriod = 2;
+    const durationMinutes = 45;
 
     const response = await request(app.getHttpServer())
       .post('/exam-sessions')
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
-        name: 'Exactly Fifteen Minutes Session',
+        name: 'Exactly Forty Five Minutes Session',
         classId,
         roomName,
         semesterName: 'HK kiểm thử',
